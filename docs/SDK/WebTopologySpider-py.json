@@ -1,0 +1,93 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.3.0",
+  "reader": {
+    "zh-Hant": "WebTopologySpiderTool 會優先嘗試使用網站 sitemap（含 robots.txt 宣告），若不可用才回退到同網域 BFS 探索，並回傳拓樸樹與子頁估算。",
+    "en": "WebTopologySpiderTool prioritizes website sitemaps (including robots.txt declarations) and falls back to same-domain BFS when sitemap is unavailable.",
+    "ja": "WebTopologySpiderTool は sitemap（robots.txt の宣言含む）を優先使用し、利用不可時のみ同一ドメイン BFS にフォールバックします。"
+  },
+  "module": {
+    "name": "src.tools.web_topology_spider",
+    "source_paths": ["src/tools/web_topology_spider.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.web_topology_spider",
+        "label": "src.tools.web_topology_spider",
+        "children": [
+          { "id": "class.WebTopologySpiderTool", "label": "WebTopologySpiderTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.WebTopologySpiderTool",
+      "kind": "class",
+      "name": "WebTopologySpiderTool",
+      "summary": "Map website route topology and estimate subpage structure for planning crawlers.",
+      "tool_contract": {
+        "name": "web_topology_spider",
+        "description": "Explore a website topology from a seed URL and return structured JSON tree data with progress/debug context.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "seed_url": { "type": "string" },
+            "max_depth": { "type": "integer" },
+            "url_pattern_filter": { "type": "string" },
+            "render_dynamic": { "type": "boolean" },
+            "dynamic_wait_ms": { "type": "integer" },
+            "max_runtime_seconds": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["seed_url"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(seed_url: str, max_depth: int = 2, url_pattern_filter: Optional[str] = None, render_dynamic: bool = False, dynamic_wait_ms: int = 1500, max_runtime_seconds: int = 45, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Runs sitemap-first topology discovery with BFS fallback, emits debug progress, and supports runtime file-routing payload."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.web_topology_spider",
+      "title": "Map site topology from a seed URL",
+      "tags": ["crawl", "topology"],
+      "code_lines": [
+        "from src.tools.web_topology_spider import WebTopologySpiderTool",
+        "",
+        "tool = WebTopologySpiderTool()",
+        "print(tool.execute(seed_url='https://example.com', max_depth=1, max_runtime_seconds=30))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Traversal boundaries",
+      "content": "Traversal depth is capped and page count is bounded to avoid runaway crawling."
+    },
+    {
+      "topic": "Sitemap priority",
+      "content": "Tool first discovers sitemap URLs from /sitemap.xml, /sitemap_index.xml, and robots.txt. If sitemap URLs are found, source_mode becomes sitemap and BFS is skipped."
+    },
+    {
+      "topic": "Internal links only",
+      "content": "Only links within the same netloc are included in traversal and topology."
+    },
+    {
+      "topic": "Runtime progress and timeout",
+      "content": "Tool emits incremental debug progress events and supports max_runtime_seconds to avoid long blocking runs."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path so large topology outputs can be persisted to file instead of inline history."
+    }
+  ]
+}

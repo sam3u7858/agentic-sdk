@@ -1,0 +1,17 @@
+{
+  "name": "video_director",
+  "version": "1.0.0",
+  "title": "Video Director Orchestration",
+  "description": "SOP for planning, asset scouting, delegating HTML work, and visual QA.",
+  "required_tools": [
+    "manage_todo_list",
+    "list_video_templates",
+    "read_video_template",
+    "find_images",
+    "html_worker_subagent",
+    "analyze_image",
+    "screenshot_and_review_html",
+    "lookup_skill"
+  ],
+  "tags": ["video", "html", "orchestrator"]
+}

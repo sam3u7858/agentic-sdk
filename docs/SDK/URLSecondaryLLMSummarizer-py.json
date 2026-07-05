@@ -1,0 +1,84 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.2.0",
+  "reader": {
+    "zh-Hant": "URLSecondaryLLMSummarizerTool 會讀取 URL 內容，使用次要 LLM 產出 300 字內摘要、關鍵字與重點，並強制保留指定原文內容。",
+    "en": "URLSecondaryLLMSummarizerTool reads URL content and uses a secondary LLM to produce <=300-char summary, keywords, and key points while preserving required original content.",
+    "ja": "URLSecondaryLLMSummarizerTool は URL 内容を読み取り、二次 LLM で 300 文字以内の要約・キーワード・重要点を生成し、指定原文の保持を強制します。"
+  },
+  "module": {
+    "name": "src.tools.url_secondary_llm_summarizer",
+    "source_paths": ["src/tools/url_secondary_llm_summarizer.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.url_secondary_llm_summarizer",
+        "label": "src.tools.url_secondary_llm_summarizer",
+        "children": [
+          { "id": "class.URLSecondaryLLMSummarizerTool", "label": "URLSecondaryLLMSummarizerTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.URLSecondaryLLMSummarizerTool",
+      "kind": "class",
+      "name": "URLSecondaryLLMSummarizerTool",
+      "summary": "Summarize web content with a secondary LLM and preserve mandatory source snippets.",
+      "tool_contract": {
+        "name": "summarize_url_with_secondary_llm",
+        "description": "Summarize URL content with a secondary LLM and preserve required source content.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "preserve_original_content": { "type": "string" },
+            "instruction": { "type": "string" },
+            "max_summary_chars": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["url", "preserve_original_content", "instruction"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(url: str, preserve_original_content: str, instruction: str, max_summary_chars: int = 300, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Returns JSON summary payload with optional file-routing mode. Falls back to heuristic summarizer when secondary LLM is not configured."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.summarize_url_secondary",
+      "title": "Summarize URL with mandatory preserved snippet",
+      "tags": ["url", "llm"],
+      "code_lines": [
+        "from src.tools.url_secondary_llm_summarizer import URLSecondaryLLMSummarizerTool",
+        "",
+        "tool = URLSecondaryLLMSummarizerTool()",
+        "print(tool.execute(",
+        "    url='https://example.com',",
+        "    preserve_original_content='Example Domain',",
+        "    instruction='One paragraph in Traditional Chinese.',",
+        "    max_summary_chars=300,",
+        "))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Secondary LLM config",
+      "content": "Uses SECONDARY_LLM_PROVIDER / SECONDARY_LLM_MODEL / SECONDARY_LLM_API_KEY / SECONDARY_LLM_API_URL when available."
+    },
+    {
+      "topic": "Fallback behavior",
+      "content": "If secondary LLM is missing or fails, tool still returns structured summary with warning and secondary_llm_used=false."
+    }
+  ]
+}

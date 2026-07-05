@@ -1,0 +1,90 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "ChatSession 把 LMWrapper、history backend 與 conversation_id 綁成單一物件，提供較輕量的 ask() 捷徑。\n\n請注意：它不像 AgentRuntime 那樣內建多步驟工具迴圈與標記終止語意。若你的場景需要工具鏈與自動停損，請改用 AgentRuntime 路徑。\n\n建構時會立刻呼叫 create_conversation()，因此資料夾／檔案副作用在 new 的當下就會發生。",
+    "en": "`ChatSession` binds `LMWrapper`, a history backend, and a `conversation_id` into one object with a lightweight `ask()` helper.\n\nIt is **not** a full autonomous tool loop like `AgentRuntime` (no marker-driven termination semantics). Prefer `AgentRuntime` when you need multi-step tool use.\n\nConstruction calls `create_conversation()` immediately, so side effects happen at instantiation time.",
+    "ja": "`ChatSession` は `LMWrapper`・履歴バックエンド・`conversation_id` を束ね、軽量な `ask()` を提供します。\n\n`AgentRuntime` のような**マルチステップツールループ**やマーカー終了の意味論は持ちません。ツール連鎖が必要なら `AgentRuntime` 側を選んでください。\n\n生成時に `create_conversation()` が即実行されるため、副作用はインスタンス化の時点で起きます。"
+  },
+  "module": {
+    "name": "src.ai_core.session",
+    "source_paths": ["src/ai_core/session.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.session",
+        "label": "src.ai_core.session",
+        "children": [
+          { "id": "class.ChatSession", "label": "ChatSession" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ChatSession",
+      "kind": "class",
+      "name": "ChatSession",
+      "import": "from src.ai_core.session import ChatSession",
+      "summary": "Thin helper that binds LMWrapper, history backend, and conversation id into a single session object.",
+      "init": {
+        "signature": "ChatSession(llm: LMWrapper, history_backend: IChatHistoryBackend, conversation_id: str)",
+        "params": [
+          { "name": "llm", "type": "LMWrapper", "description": "Model wrapper used for completions." },
+          { "name": "history_backend", "type": "IChatHistoryBackend", "description": "Conversation storage backend." },
+          { "name": "conversation_id", "type": "str", "description": "Persistent conversation identifier." }
+        ],
+        "behavior": {
+          "side_effects": "Calls history_backend.create_conversation(conversation_id) immediately."
+        }
+      },
+      "methods": [
+        {
+          "name": "ask",
+          "signature": "ask(question: str) -> str",
+          "summary": "Append a user message, call the model on the full conversation, then append the assistant reply.",
+          "params": [
+            { "name": "question", "type": "str", "description": "User question text." }
+          ],
+          "returns": {
+            "type": "str",
+            "description": "Direct response returned by llm.get_completion()."
+          },
+          "behavior": [
+            "Writes the user message into the history backend first.",
+            "Loads the full conversation through history_backend.get_conversation(...).",
+            "Writes the assistant response back as role='assistant'."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.chat_session_basic",
+      "title": "Create and use ChatSession",
+      "tags": ["session", "history"],
+      "code_lines": [
+        "from src.ai_core.history import LocalChatHistory",
+        "from src.ai_core.llm import LMWrapper",
+        "from src.ai_core.session import ChatSession",
+        "",
+        "history = LocalChatHistory(storage_dir='chat_history')",
+        "llm = LMWrapper(provider='gemini', model='gemini-3.1-flash-lite-preview', api_key='...')",
+        "session = ChatSession(llm, history, 'demo-session')",
+        "reply = session.ask('hello')"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Simple helper only",
+      "content": "ChatSession.ask() is a lightweight one-shot wrapper and does not implement the AgentRuntime autonomous loop."
+    },
+    {
+      "topic": "Return-type drift",
+      "content": "Current LMWrapper.get_completion() returns a normalized dict in the runtime path. If ChatSession.ask() is used directly, confirm that the caller expects the current LMWrapper response shape."
+    }
+  ]
+}

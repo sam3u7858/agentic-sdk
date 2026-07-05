@@ -1,0 +1,47 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "影像後端協定與預設 Hardcoded 目錄（無 CLIP）；環境變數 IMAGE_STATIC_BASE。",
+    "en": "ImageBackend protocol and Hardcoded catalog (no CLIP); env IMAGE_STATIC_BASE.",
+    "ja": "ImageBackend と Hardcoded カタログ；環境変数 IMAGE_STATIC_BASE。"
+  },
+  "module": {
+    "name": "src.ai_core.image_backend",
+    "source_paths": ["src/ai_core/image_backend.py", "src/ai_core/image_catalog/hardcoded_asset_reference.md"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.image_backend",
+        "label": "src.ai_core.image_backend",
+        "children": [
+          { "id": "class.HardcodedImageBackend", "label": "HardcodedImageBackend" },
+          { "id": "func.resolve_image_static_base", "label": "resolve_image_static_base" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.HardcodedImageBackend",
+      "kind": "class",
+      "name": "HardcodedImageBackend",
+      "import": "from src.ai_core.image_backend import HardcodedImageBackend",
+      "summary": "Returns markdown catalog with {{IMAGE_STATIC_BASE}} replaced."
+    },
+    {
+      "id": "func.resolve_image_static_base",
+      "kind": "function",
+      "name": "resolve_image_static_base",
+      "signature": "resolve_image_static_base() -> str",
+      "summary": "Reads IMAGE_STATIC_BASE env or default LAN sample base."
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Future CLIP backend",
+      "content": "Implement ImageBackend with the same find_candidates signature; swap in agent_factory for FindImagesTool."
+    }
+  ]
+}

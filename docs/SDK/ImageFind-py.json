@@ -1,0 +1,48 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "find_images 工具委派 ImageBackend；大量目錄建 file 模式。",
+    "en": "find_images delegates to ImageBackend; use file/history_mode for large catalogs.",
+    "ja": "find_images は ImageBackend に委譲。"
+  },
+  "module": {
+    "name": "src.tools.image_find",
+    "source_paths": ["src/tools/image_find.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.image_find",
+        "label": "src.tools.image_find",
+        "children": [
+          { "id": "class.FindImagesTool", "label": "FindImagesTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.FindImagesTool",
+      "kind": "class",
+      "name": "FindImagesTool",
+      "import": "from src.tools.image_find import FindImagesTool",
+      "summary": "Wraps ImageBackend.find_candidates; optional history_mode=file.",
+      "tool_contract": {
+        "name": "find_images",
+        "description": "Find image asset URLs via catalog backend (hardcoded mock by default).",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query_text": { "type": "string" },
+            "top_k": { "type": "integer" },
+            "save_policy": { "type": "string" },
+            "history_mode": { "type": "string" }
+          },
+          "required": ["query_text"]
+        }
+      }
+    }
+  ],
+  "runtime_notes": []
+}

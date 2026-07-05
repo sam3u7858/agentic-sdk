@@ -1,0 +1,98 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "ScanWorkspaceTool 產生專案目錄樹狀文字，並略過常見噪音目錄（venv、node_modules、.git 等）。\n\n用途：讓模型快速理解 repo 結構而不必逐一開檔。輸出是人類可讀文字而非 JSON，若你要機器解析請另外包一層工具。\n\n遇到權限錯誤時掃描會略過該路徑繼續，這可能掩蓋部分問題；除錯時請留意作業系統權限。",
+    "en": "`ScanWorkspaceTool` prints a **text tree** of the workspace while skipping noisy folders (`venv`, `node_modules`, `.git`, etc.).\n\nUse it so the model can grasp repository layout without opening every file. Output is human text, not JSON—wrap another tool if you need machine parsing.\n\n`PermissionError` paths are skipped silently; check OS permissions when results look incomplete.",
+    "ja": "`ScanWorkspaceTool` は作業ツリーを**テキストの木**として返し、`venv` や `node_modules`、`.git` などのノイズを除外します。\n\nリポジトリ構成の把握に向きますが、出力は JSON ではないため機械処理が必要なら別ツールで包んでください。\n\n`PermissionError` は黙ってスキップされるため、結果が薄いときは権限も確認してください。"
+  },
+  "module": {
+    "name": "src.tools.workspace_scout",
+    "source_paths": ["src/tools/workspace_scout.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.workspace_scout",
+        "label": "src.tools.workspace_scout",
+        "children": [
+          { "id": "class.ScanWorkspaceTool", "label": "ScanWorkspaceTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ScanWorkspaceTool",
+      "kind": "class",
+      "name": "ScanWorkspaceTool",
+      "import": "from src.tools.workspace_scout import ScanWorkspaceTool",
+      "summary": "Generate a lightweight project tree while skipping common cache, venv, and binary paths.",
+      "init": {
+        "signature": "ScanWorkspaceTool(root_dir: str = '.')",
+        "params": [
+          { "name": "root_dir", "type": "str", "default": ".", "description": "Workspace root to scan recursively." }
+        ],
+        "behavior": {
+          "ignores": "Skips directories such as .git, __pycache__, venv, .venv, node_modules, .pytest_cache, chat_history and binary-style extensions such as .png, .jpg, .exe."
+        }
+      },
+      "tool_contract": {
+        "name": "scan_workspace",
+        "description": "Scan the current project directory and return the tree structure of folders and files.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "max_depth": {
+              "type": "integer",
+              "description": "Maximum scan depth, default 3."
+            },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          }
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(max_depth: int = 3, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs) -> Union[str, Dict[str, Any]]",
+          "summary": "Return workspace tree text and optionally route output via file-mode payload."
+        },
+        {
+          "name": "_generate_tree",
+          "signature": "_generate_tree(current_path: Path, prefix: str, tree_lines: List[str], current_depth: int, max_depth: int)",
+          "summary": "Recursive internal helper for tree generation.",
+          "visibility": "internal"
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.scan_workspace",
+      "title": "Inspect project structure",
+      "tags": ["workspace", "tree"],
+      "code_lines": [
+        "from src.tools.workspace_scout import ScanWorkspaceTool",
+        "",
+        "tool = ScanWorkspaceTool(root_dir='.')",
+        "print(tool.execute(max_depth=2))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Permission handling",
+      "content": "PermissionError during directory traversal is silently skipped so scanning continues."
+    },
+    {
+      "topic": "Output style",
+      "content": "The tool emits a human-readable tree using box-drawing characters and relative indentation, not machine-readable JSON."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path for large tree outputs."
+    }
+  ]
+}

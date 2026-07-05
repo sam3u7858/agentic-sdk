@@ -1,0 +1,57 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "可寫入 output/ 的子代理；與 readonly_subagent 分流，不得遞迴。",
+    "en": "Child runtime that may write output/; split from readonly_subagent; no recursion.",
+    "ja": "output/ への書き込みを許可する子 runtime。readonly と分離し再帰不可。"
+  },
+  "module": {
+    "name": "src.tools.html_worker_subagent",
+    "source_paths": ["src/tools/html_worker_subagent.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.html_worker_subagent",
+        "label": "src.tools.html_worker_subagent",
+        "children": [
+          { "id": "class.HtmlWorkerSubAgentTool", "label": "HtmlWorkerSubAgentTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.HtmlWorkerSubAgentTool",
+      "kind": "class",
+      "name": "HtmlWorkerSubAgentTool",
+      "import": "from src.tools.html_worker_subagent import HtmlWorkerSubAgentTool",
+      "summary": "Spawn HTML worker with worker_tool_factories; loads optional templates/<id>/system_prompt.md.",
+      "tool_contract": {
+        "name": "html_worker_subagent",
+        "description": "Spawn worker sub-agent for HTML under templates/ and writes to output/.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "string" },
+            "max_steps": { "type": "integer" },
+            "allowed_tools": { "type": "array", "items": { "type": "string" } },
+            "template_id": { "type": "string" }
+          },
+          "required": ["task"]
+        }
+      }
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Blocked tools",
+      "content": "readonly_subagent and html_worker_subagent are stripped from child whitelist."
+    },
+    {
+      "topic": "History",
+      "content": "Child transcripts live under <storage_directory>/subagents/ like readonly sub-agent."
+    }
+  ]
+}

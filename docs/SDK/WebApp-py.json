@@ -1,0 +1,138 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.1",
+  "reader": {
+    "zh-Hant": "web_app 把同一套 Agent 堆疊接到 Flask：提供除錯 UI、REST API 與 SSE 事件流。\n\n閱讀順序建議：POST /api/chat 如何啟動背景執行緒 → RuntimeEventStore 如何緩衝事件 → GET /api/stream 如何用 SSE 推送。\n\n與 SDK 其他模組對照時，請把此檔視為「整合層」：核心推理仍在 AgentRuntime，Web 只負責輸入輸出與可觀測性。",
+    "en": "`web_app` exposes the same agent stack through Flask: a debug UI, REST endpoints, and an SSE event stream.\n\nSuggested reading order: how `POST /api/chat` starts a background thread, how `RuntimeEventStore` buffers events, and how `GET /api/stream` streams them.\n\nTreat this module as the **integration layer**; core reasoning still lives in `AgentRuntime`.",
+    "ja": "`web_app` は同じエージェントスタックを Flask で公開します（デバッグ UI、REST、SSE）。\n\n読み方の提案：`POST /api/chat` のバックグラウンド起動 → `RuntimeEventStore` のバッファ → `GET /api/stream` の SSE。\n\nこのファイルは**統合層**と捉え、推論本体は引き続き `AgentRuntime` にあります。"
+  },
+  "module": {
+    "name": "web_app",
+    "source_paths": ["web_app.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.web_app",
+        "label": "web_app",
+        "children": [
+          { "id": "class.RuntimeEventStore", "label": "RuntimeEventStore" },
+          { "id": "func._event_handler", "label": "_event_handler" },
+          { "id": "func._run_agent_in_background", "label": "_run_agent_in_background" },
+          { "id": "route.index", "label": "GET /" },
+          { "id": "route.list_conversations", "label": "GET /api/conversations" },
+          { "id": "route.get_conversation", "label": "GET /api/conversations/<conversation_id>" },
+          { "id": "route.get_conversation_todos", "label": "GET /api/conversations/<conversation_id>/todos" },
+          { "id": "route.create_chat", "label": "POST /api/chat" },
+          { "id": "route.stream_events", "label": "GET /api/stream/<conversation_id>" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.RuntimeEventStore",
+      "kind": "class",
+      "name": "RuntimeEventStore",
+      "summary": "Thread-safe in-memory store for per-conversation runtime events streamed to the browser.",
+      "methods": [
+        { "name": "publish", "signature": "publish(conversation_id: str, event: Dict[str, Any]) -> None", "summary": "Append a new event to the conversation stream." },
+        { "name": "mark_completed", "signature": "mark_completed(conversation_id: str) -> None", "summary": "Mark a conversation run as complete." },
+        { "name": "start_run", "signature": "start_run(conversation_id: str) -> None", "summary": "Reset stored events and completion state for a fresh run." },
+        { "name": "get_events_since", "signature": "get_events_since(conversation_id: str, index: int) -> List[Dict[str, Any]]", "summary": "Return events newer than the supplied cursor index." },
+        { "name": "is_completed", "signature": "is_completed(conversation_id: str) -> bool", "summary": "Return whether the run has been marked complete." }
+      ]
+    },
+    {
+      "id": "func._event_handler",
+      "kind": "function",
+      "name": "_event_handler",
+      "signature": "_event_handler(event: Dict[str, Any]) -> None",
+      "summary": "Runtime callback that forwards AgentRuntime events into RuntimeEventStore."
+    },
+    {
+      "id": "func._run_agent_in_background",
+      "kind": "function",
+      "name": "_run_agent_in_background",
+      "signature": "_run_agent_in_background(conversation_id: str, prompt: str, max_steps: int) -> None",
+      "summary": "Background worker target used by POST /api/chat to execute AgentRuntime asynchronously."
+    },
+    {
+      "id": "route.index",
+      "kind": "route",
+      "name": "index",
+      "signature": "GET /",
+      "summary": "Render the main debug UI template."
+    },
+    {
+      "id": "route.list_conversations",
+      "kind": "route",
+      "name": "list_conversations",
+      "signature": "GET /api/conversations",
+      "summary": "Return stored conversation metadata for the sidebar list."
+    },
+    {
+      "id": "route.get_conversation",
+      "kind": "route",
+      "name": "get_conversation",
+      "signature": "GET /api/conversations/<conversation_id>",
+      "summary": "Return full stored conversation JSON or 404 if the id does not exist."
+    },
+    {
+      "id": "route.get_conversation_todos",
+      "kind": "route",
+      "name": "get_conversation_todos",
+      "signature": "GET /api/conversations/<conversation_id>/todos",
+      "summary": "Return TODO JSON shared with manage_todo_list (chat_history/todos/<id>.json)."
+    },
+    {
+      "id": "route.create_chat",
+      "kind": "route",
+      "name": "create_chat",
+      "signature": "POST /api/chat",
+      "summary": "Start a new run or continue an existing conversation, then return the conversation_id.",
+      "behavior": [
+        "Accepts JSON payload with prompt, max_steps, and optional conversation_id.",
+        "Generates a new web_* id only when conversation_id is absent."
+      ]
+    },
+    {
+      "id": "route.stream_events",
+      "kind": "route",
+      "name": "stream_events",
+      "signature": "GET /api/stream/<conversation_id>",
+      "summary": "Server-Sent Events stream for runtime updates, keep-alives, and terminal done event."
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.web_chat_flow",
+      "title": "Start a chat run from an HTTP client",
+      "tags": ["flask", "sse", "web"],
+      "code_lines": [
+        "import requests",
+        "",
+        "resp = requests.post('http://127.0.0.1:15220/api/chat', json={",
+        "    'prompt': '請掃描 materials 並摘要重點',",
+        "    'max_steps': 8",
+        "})",
+        "conversation_id = resp.json()['conversation_id']",
+        "print(conversation_id)"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Volatile event store",
+      "content": "RuntimeEventStore is process-memory only. Historical chat data persists in LocalChatHistory, but the live event stream is not persisted across restarts."
+    },
+    {
+      "topic": "Conversation continuation",
+      "content": "POST /api/chat continues an existing conversation whenever the frontend sends conversation_id; a fresh id is created only for new conversations."
+    },
+    {
+      "topic": "SSE framing",
+      "content": "The stream sends retry: 1000, keep-alive comments, JSON event frames, and a terminal done event once the background run completes."
+    }
+  ]
+}

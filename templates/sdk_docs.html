@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SDK Docs</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='app.css') }}"
+    />
+  </head>
+  <body>
+    <div class="docs-shell">
+      <aside class="docs-sidebar">
+        <div class="docs-sidebar-header">
+          <nav class="docs-nav-tabs" aria-label="Documentation sections">
+            <a
+              class="{% if docs_tab == 'sdk' %}active{% endif %}"
+              href="/docs"
+              >SDK</a
+            >
+            <a
+              class="{% if docs_tab == 'howto' %}active{% endif %}"
+              href="/docs/how-to"
+              >How to use</a
+            >
+          </nav>
+          <div class="docs-sidebar-title">SDK Docs</div>
+          <div class="docs-sidebar-search">
+            <input
+              id="sdk-docs-search"
+              type="text"
+              placeholder="Search..."
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div id="sdk-docs-sidebar" class="docs-sidebar-content" aria-label="SDK sidebar">
+          {% for m in sidebar %}
+          <section
+            class="docs-sidebar-module"
+            data-module-id="{{ m.module_id }}"
+            data-module-label="{{ m.label }}"
+          >
+            <div class="docs-sidebar-module-title{% if m.module_id == active_module_id %} active{% endif %}">
+              <a href="/docs/module/{{ m.module_id }}">{{ m.label }}</a>
+            </div>
+            <div class="docs-sidebar-children">
+              {% for c in m.children %}
+              <a
+                class="docs-sidebar-item{% if c.id == active_symbol_id %} active{% endif %}"
+                href="/docs/symbol/{{ c.id }}"
+                data-symbol-label="{{ c.label }}"
+              >
+                {{ c.label }}
+              </a>
+              {% endfor %}
+            </div>
+          </section>
+          {% endfor %}
+        </div>
+      </aside>
+
+      <main class="docs-content">
+        <header class="docs-topbar">
+          {% if view == "module" %}
+          <div class="docs-breadcrumb">
+            <span class="docs-breadcrumb-pill">Module</span>
+            <span class="docs-breadcrumb-text">{{ module_doc.module.name if module_doc.module else active_module_id }}</span>
+          </div>
+          {% else %}
+          <div class="docs-breadcrumb">
+            <span class="docs-breadcrumb-pill">Symbol</span>
+            <span class="docs-breadcrumb-text">
+              {{ symbol_doc.kind if symbol_doc.kind else "unknown" }}/{{ symbol_doc.name if symbol_doc.name else active_symbol_id }}
+            </span>
+          </div>
+          {% endif %}
+        </header>
+
+        <div class="docs-body">
+          {% if view == "module" %}
+          <section class="docs-section">
+            <h1 class="docs-h1">
+              {{ module_doc.module.name if module_doc.module else active_module_id }}
+            </h1>
+            {% if module_doc.module.source_paths %}
+            <div class="docs-meta">
+              <div class="docs-meta-item">
+                <div class="docs-meta-key">Source</div>
+                <div class="docs-meta-value">
+                  <ul class="docs-inline-list">
+                    {% for p in module_doc.module.source_paths %}
+                    <li><code>{{ p }}</code></li>
+                    {% endfor %}
+                  </ul>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+          </section>
+
+          {% if module_doc.reader %}
+          <section class="docs-section docs-reader-section">
+            <h2 class="docs-h2">閱讀指南 / Reader guide / リーダーガイド</h2>
+            {% if module_doc.reader.get('zh-Hant') %}
+            <div class="docs-reader-block">
+              <h3 class="docs-h3">繁體中文</h3>
+              <div class="docs-reader-prose">{{ module_doc.reader['zh-Hant'] }}</div>
+            </div>
+            {% endif %}
+            {% if module_doc.reader.get('en') %}
+            <div class="docs-reader-block">
+              <h3 class="docs-h3">English</h3>
+              <div class="docs-reader-prose">{{ module_doc.reader['en'] }}</div>
+            </div>
+            {% endif %}
+            {% if module_doc.reader.get('ja') %}
+            <div class="docs-reader-block">
+              <h3 class="docs-h3">日本語</h3>
+              <div class="docs-reader-prose">{{ module_doc.reader['ja'] }}</div>
+            </div>
+            {% endif %}
+          </section>
+          {% endif %}
+
+          <section class="docs-section">
+            <h2 class="docs-h2">Symbols</h2>
+            <div class="docs-symbol-grid">
+              {% for s in module_symbols %}
+              <a class="docs-symbol-card" href="/docs/symbol/{{ s.id }}">
+                <div class="docs-symbol-card-top">
+                  <span class="docs-chip">{{ s.kind if s.kind else "symbol" }}</span>
+                  <span class="docs-symbol-card-name">{{ s.name if s.name else s.id }}</span>
+                </div>
+                {% if s.summary %}
+                <div class="docs-symbol-card-summary">{{ s.summary }}</div>
+                {% endif %}
+              </a>
+              {% endfor %}
+            </div>
+          </section>
+          {% else %}
+          <section class="docs-section">
+            <h1 class="docs-h1">
+              {{ symbol_doc.name if symbol_doc.name else active_symbol_id }}
+            </h1>
+            <div class="docs-symbol-header">
+              <div class="docs-symbol-header-left">
+                <span class="docs-chip">{{ symbol_doc.kind if symbol_doc.kind else "symbol" }}</span>
+              </div>
+              {% if symbol_doc.import %}
+              <div class="docs-import">
+                <div class="docs-meta-key">Import</div>
+                <pre class="docs-pre docs-pre-tight"><code>{{ symbol_doc.import }}</code></pre>
+              </div>
+              {% endif %}
+            </div>
+
+            {% if symbol_doc.summary %}
+            <div class="docs-summary">{{ symbol_doc.summary }}</div>
+            {% endif %}
+          </section>
+
+        {% if symbol_doc.fields %}
+        <section class="docs-section">
+          <h2 class="docs-h2">Fields</h2>
+          <div class="docs-params">
+            {% for f in symbol_doc.fields %}
+            <div class="docs-param">
+              <div class="docs-param-left">
+                <code class="docs-param-name">{{ f.name }}</code>
+                {% if f.type %}
+                <span class="docs-param-type">{{ f.type }}</span>
+                {% endif %}
+                {% if f.required is defined %}
+                <span class="docs-param-type">required={{ f.required }}</span>
+                {% endif %}
+              </div>
+              {% if f.description %}
+              <div class="docs-param-desc">{{ f.description }}</div>
+              {% endif %}
+            </div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
+        {% if symbol_doc.notes %}
+        <section class="docs-section">
+          <h2 class="docs-h2">Notes</h2>
+          <div class="docs-bullets">
+            {% for note in symbol_doc.notes %}
+            <div>• {{ note }}</div>
+            {% endfor %}
+          </div>
+        </section>
+        {% endif %}
+
+          {% if symbol_doc.tool_contract %}
+          <section class="docs-section">
+            <h2 class="docs-h2">Tool Contract</h2>
+            <div class="docs-kv">
+              <div class="docs-kv-row">
+                <div class="docs-kv-key">Name</div>
+                <div class="docs-kv-value"><code>{{ symbol_doc.tool_contract.name }}</code></div>
+              </div>
+              {% if symbol_doc.tool_contract.description %}
+              <div class="docs-kv-row">
+                <div class="docs-kv-key">Description</div>
+                <div class="docs-kv-value">{{ symbol_doc.tool_contract.description }}</div>
+              </div>
+              {% endif %}
+            </div>
+            {% if symbol_doc.tool_contract.parameters %}
+            <div class="docs-subsection">
+              <h3 class="docs-h3">Parameters</h3>
+              <pre class="docs-pre"><code>{{ symbol_doc.tool_contract.parameters | tojson }}</code></pre>
+            </div>
+            {% endif %}
+          </section>
+          {% endif %}
+
+          {% if symbol_doc.init %}
+          <section class="docs-section">
+            <h2 class="docs-h2">Init</h2>
+            <div class="docs-callout">
+              {% if symbol_doc.init.signature %}
+              <div class="docs-pre-title">Signature</div>
+              <pre class="docs-pre"><code>{{ symbol_doc.init.signature }}</code></pre>
+              {% endif %}
+
+              {% if symbol_doc.init.params %}
+              <div class="docs-subsection">
+                <h3 class="docs-h3">Parameters</h3>
+                <div class="docs-params">
+                  {% for p in symbol_doc.init.params %}
+                  <div class="docs-param">
+                    <div class="docs-param-left">
+                      <code class="docs-param-name">{{ p.name }}</code>
+                      <span class="docs-param-type">{{ p.type }}</span>
+                    </div>
+                    {% if p.description %}
+                    <div class="docs-param-desc">{{ p.description }}</div>
+                    {% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+              {% endif %}
+
+              {% if symbol_doc.init.behavior %}
+              <div class="docs-subsection">
+                <h3 class="docs-h3">Behavior</h3>
+                {% if symbol_doc.init.behavior is string %}
+                <div class="docs-text">{{ symbol_doc.init.behavior }}</div>
+                {% elif symbol_doc.init.behavior is mapping %}
+                <div class="docs-kv">
+                  {% for k, v in symbol_doc.init.behavior.items() %}
+                  <div class="docs-kv-row">
+                    <div class="docs-kv-key">{{ k }}</div>
+                    <div class="docs-kv-value">{{ v }}</div>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% elif symbol_doc.init.behavior is sequence %}
+                <ul class="docs-bullets">
+                  {% for b in symbol_doc.init.behavior %}
+                  <li>{{ b }}</li>
+                  {% endfor %}
+                </ul>
+                {% endif %}
+              </div>
+              {% endif %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if symbol_doc.methods %}
+          <section class="docs-section">
+            <h2 class="docs-h2">Methods</h2>
+            <div class="docs-method-list">
+              {% for mtd in symbol_doc.methods %}
+              <article class="docs-method-card">
+                <div class="docs-method-top">
+                  <h3 class="docs-h3" style="margin: 0;">
+                    {{ mtd.name if mtd.name else "method" }}
+                  </h3>
+                  {% if mtd.summary %}
+                  <div class="docs-muted">{{ mtd.summary }}</div>
+                  {% endif %}
+                </div>
+
+                {% if mtd.signature %}
+                <div class="docs-subsection">
+                  <div class="docs-pre-title">Signature</div>
+                  <pre class="docs-pre docs-pre-tight"><code>{{ mtd.signature }}</code></pre>
+                </div>
+                {% endif %}
+
+                {% if mtd.params %}
+                <div class="docs-subsection">
+                  <h3 class="docs-h3">Params</h3>
+                  <div class="docs-params">
+                    {% for p in mtd.params %}
+                    <div class="docs-param">
+                      <div class="docs-param-left">
+                        <code class="docs-param-name">{{ p.name }}</code>
+                        <span class="docs-param-type">{{ p.type }}</span>
+                      </div>
+                      {% if p.description %}
+                      <div class="docs-param-desc">{{ p.description }}</div>
+                      {% endif %}
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+
+                {% if mtd.returns %}
+                <div class="docs-subsection">
+                  <h3 class="docs-h3">Returns</h3>
+                  <div class="docs-kv">
+                    <div class="docs-kv-row">
+                      <div class="docs-kv-key">Type</div>
+                      <div class="docs-kv-value"><code>{{ mtd.returns.type if mtd.returns.type else "" }}</code></div>
+                    </div>
+                    {% if mtd.returns.description %}
+                    <div class="docs-kv-row">
+                      <div class="docs-kv-key">Description</div>
+                      <div class="docs-kv-value">{{ mtd.returns.description }}</div>
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+                {% endif %}
+
+                {% if mtd.behavior %}
+                <div class="docs-subsection">
+                  <h3 class="docs-h3">Behavior</h3>
+                  {% if mtd.behavior is string %}
+                  <div class="docs-text">{{ mtd.behavior }}</div>
+                  {% elif mtd.behavior is mapping %}
+                  <div class="docs-kv">
+                    {% for k, v in mtd.behavior.items() %}
+                    <div class="docs-kv-row">
+                      <div class="docs-kv-key">{{ k }}</div>
+                      <div class="docs-kv-value">{{ v }}</div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                  {% elif mtd.behavior is sequence %}
+                  <ul class="docs-bullets">
+                    {% for b in mtd.behavior %}
+                    <li>{{ b }}</li>
+                    {% endfor %}
+                  </ul>
+                  {% endif %}
+                </div>
+                {% endif %}
+
+                {% if mtd.logging %}
+                <div class="docs-subsection">
+                  <h3 class="docs-h3">Logging</h3>
+                  <ul class="docs-bullets">
+                    {% for log_item in mtd.logging %}
+                    <li>
+                      <code>{{ log_item.level }}</code> - {{ log_item.message }}
+                    </li>
+                    {% endfor %}
+                  </ul>
+                </div>
+                {% endif %}
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if symbol_doc.examples %}
+          <section class="docs-section">
+            <h2 class="docs-h2">Examples</h2>
+            <div class="docs-examples">
+              {% for ex in symbol_doc.examples %}
+              <article class="docs-example-card">
+                <div class="docs-example-title">
+                  {{ ex.title if ex.title else ex.id }}
+                </div>
+                {% if ex.tags %}
+                <div class="docs-tags">
+                  {% for t in ex.tags %}
+                  <span class="docs-tag">{{ t }}</span>
+                  {% endfor %}
+                </div>
+                {% endif %}
+                <pre class="docs-pre"><code>
+{% for line in ex.code_lines %}{{ line }}
+{% endfor %}
+                </code></pre>
+              </article>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if symbol_doc.runtime_notes %}
+          <section class="docs-section">
+            <h2 class="docs-h2">Runtime Notes</h2>
+            <div class="docs-callouts">
+              {% for note in symbol_doc.runtime_notes %}
+              <div class="docs-callout">
+                <div class="docs-callout-title">{{ note.topic if note.topic else "Note" }}</div>
+                <div class="docs-callout-content">{{ note.content if note.content else "" }}</div>
+              </div>
+              {% endfor %}
+            </div>
+          </section>
+          {% endif %}
+
+          {% if module_doc.reader %}
+          <div class="docs-footer-hint">
+            <a class="docs-module-reader-link" href="/docs/module/{{ active_module_id }}"
+              >模組概覽（多語說明） / Module reader guide</a
+            >
+          </div>
+          {% endif %}
+
+          <div class="docs-footer-hint">
+            <span class="docs-muted">Tip: Use the sidebar to jump between symbols.</span>
+          </div>
+          {% endif %}
+        </div>
+      </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='sdk_docs.js') }}"></script>
+  </body>
+</html>
+

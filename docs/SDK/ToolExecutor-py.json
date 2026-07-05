@@ -1,0 +1,145 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "ToolExecutor 負責註冊工具並依名稱執行。新版支援工具回傳字串或結構化 dict（供 Runtime 做 history 路由與檔案落地）。\n\n設計上，execute() 在失敗時回傳錯誤字串而非拋例外，讓 AgentRuntime 可持續流程。若註冊同名工具，後者會覆蓋前者。\n\n開發新工具請參考 [開發自訂工具 (Tool)](/docs/how-to/zh-Hant/06-tool-authoring.md) 與 [工具註冊與 SDK 教學](/docs/how-to/zh-Hant/09-tool-registration-sdk.md)。",
+    "en": "`ToolExecutor` registers tools and executes them by name. The updated version supports tool results as either string or structured dict payloads (for runtime history routing and file persistence).\n\nFailures are normalized into error strings so the loop can continue. Duplicate tool names are last-write-wins.\n\nSee [Tool Authoring](/docs/how-to/en/06-tool-authoring.md) and [Tool Registration SDK Guide](/docs/how-to/en/09-tool-registration-sdk.md).",
+    "ja": "`ToolExecutor` はツールを名前で登録・実行します。新版では結果として文字列だけでなく構造化 dict も受け取り、Runtime 側の履歴ルーティングとファイル保存に利用できます。\n\n失敗は例外ではなくエラー文字列に正規化され、ループ継続性を保ちます。同名ツールは後勝ちです。\n\n詳細は [カスタムツールの開発 (Tool)](/docs/how-to/ja/06-tool-authoring.md) と [ツール登録と SDK ガイド](/docs/how-to/ja/09-tool-registration-sdk.md)。"
+  },
+  "module": {
+    "name": "src.ai_core.tool_executor",
+    "source_paths": ["src/ai_core/tool_executor.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.tool_executor",
+        "label": "src.ai_core.tool_executor",
+        "children": [
+          { "id": "class.BaseTool", "label": "BaseTool" },
+          { "id": "class.ToolExecutor", "label": "ToolExecutor" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.BaseTool",
+      "kind": "class",
+      "name": "BaseTool",
+      "summary": "Abstract base contract for all Agent tools exposed to the model.",
+      "methods": [
+        {
+          "name": "name",
+          "signature": "name -> str",
+          "summary": "Unique function-calling identifier visible to the LLM.",
+          "behavior": ["Expected to contain only alphanumeric characters and underscore."]
+        },
+        {
+          "name": "description",
+          "signature": "description -> str",
+          "summary": "Natural-language guidance telling the LLM when to use the tool."
+        },
+        {
+          "name": "parameters",
+          "signature": "parameters -> Dict[str, Any]",
+          "summary": "JSON Schema parameters object consumed by LLM function calling."
+        },
+        {
+          "name": "execute",
+          "signature": "execute(**kwargs) -> Union[str, Dict[str, Any]]",
+          "summary": "Tool implementation entrypoint. Can return plain text or structured payload."
+        },
+        {
+          "name": "get_schema",
+          "signature": "get_schema() -> Dict[str, Any]",
+          "summary": "Assemble name, description, and parameters into the final function-calling schema."
+        }
+      ]
+    },
+    {
+      "id": "class.ToolExecutor",
+      "kind": "class",
+      "name": "ToolExecutor",
+      "import": "from src.ai_core.tool_executor import ToolExecutor",
+      "summary": "Registry and execution wrapper for BaseTool instances.",
+      "init": {
+        "signature": "ToolExecutor()",
+        "params": [],
+        "behavior": {
+          "storage": "Registered tools are kept in an in-memory dict keyed by tool.name."
+        }
+      },
+      "methods": [
+        {
+          "name": "register_tool",
+          "signature": "register_tool(tool: BaseTool) -> None",
+          "summary": "Register one tool instance by name.",
+          "raises": [
+            { "type": "TypeError", "when": "tool does not inherit from BaseTool", "message_pattern": "Tool must inherit from BaseTool" }
+          ],
+          "logging": [
+            { "level": "INFO", "message": "Successfully registered tool: {tool.name}" }
+          ]
+        },
+        {
+          "name": "register_tools",
+          "signature": "register_tools(tools: List[BaseTool]) -> None",
+          "summary": "Register a batch of tool instances in order."
+        },
+        {
+          "name": "schemas",
+          "signature": "schemas -> List[Dict[str, Any]]",
+          "summary": "Return all tool schemas ready to be sent to the LLM."
+        },
+        {
+          "name": "execute",
+          "signature": "execute(tool_name: str, arguments: Dict[str, Any]) -> Union[str, Dict[str, Any]]",
+          "summary": "Execute a registered tool by name and normalize failures into string results.",
+          "behavior": [
+            "Calls tool.execute(**arguments).",
+            "Returns dict payload as-is for runtime-level routing.",
+            "Converts non-dict payload to str().",
+            "If the tool name is missing, returns an error string instead of raising.",
+            "If the tool raises an exception, logs the exception and returns an error string."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.tool_executor_register",
+      "title": "Register and execute tools",
+      "tags": ["tools", "executor", "function-calling"],
+      "code_lines": [
+        "from src.ai_core.tool_executor import ToolExecutor",
+        "from src.tools.workspace_scout import ScanWorkspaceTool",
+        "",
+        "executor = ToolExecutor()",
+        "executor.register_tool(ScanWorkspaceTool(root_dir='.'))",
+        "",
+        "print(executor.schemas)",
+        "print(executor.execute('scan_workspace', {'max_depth': 2}))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Error shape",
+      "content": "ToolExecutor.execute() returns string errors instead of raising. Upstream code such as AgentRuntime treats these as tool content."
+    },
+    {
+      "topic": "Name collisions",
+      "content": "Registering another tool with the same name overwrites the previous entry because tools are keyed by tool.name."
+    },
+    {
+      "topic": "Schema pass-through",
+      "content": "Tool schemas are taken directly from BaseTool properties. Parameter validation is delegated to the model, tool code, or downstream providers."
+    },
+    {
+      "topic": "Structured payload",
+      "content": "ToolExecutor no longer forces every tool result to string. Dict payloads are preserved so AgentRuntime can route output to history inline or file storage."
+    }
+  ]
+}

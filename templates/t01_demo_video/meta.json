@@ -1,0 +1,11 @@
+{
+  "id": "t01_demo_video",
+  "title": "Demo video HTML shell",
+  "description": "Minimal template for orchestrator + HTML worker tests.",
+  "version": "1.0.0",
+  "assets": {
+    "base_html": "base.html",
+    "system_prompt": "system_prompt.md"
+  },
+  "notes": "Host agent should read only this meta; use html_worker_subagent for base.html."
+}

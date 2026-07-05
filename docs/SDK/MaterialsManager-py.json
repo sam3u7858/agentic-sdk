@@ -1,0 +1,161 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "這組工具讓 Agent 在 materials 目錄內列出、讀取與摘要素材檔。\n\n典型用途：把長篇參考資料放在 materials/，由模型透過工具分段讀取，避免一次塞爆上下文。摘要工具的行為與長度裁切請以實作與提示詞約定為準。\n\n路徑與權限錯誤時，工具多會回傳可讀錯誤字串；除錯時請同時檢查 materials 目錄結構與檔名。",
+    "en": "These tools let the agent **list**, **read**, and **summarize** files under a `materials/` directory.\n\nTypical pattern: store long reference documents on disk and let the model pull them in chunks instead of stuffing everything into one prompt. Summarization behavior depends on implementation + prompt contracts.\n\nErrors often surface as readable strings; verify folder layout and filenames when debugging.",
+    "ja": "`materials/` 配下のファイルを**列挙・読取・要約**するツール群です。\n\n長文資料をディスクに置き、モデルが段階的に読む用途に向きます。要約の粒度や長さ制限は実装とプロンプトの約束に依存します。\n\n権限やパス問題は文字列エラーになりがちなので、ディレクトリ構成とファイル名も合わせて確認してください。"
+  },
+  "module": {
+    "name": "src.tools.materials_manager",
+    "source_paths": ["src/tools/materials_manager.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.materials_manager",
+        "label": "src.tools.materials_manager",
+        "children": [
+          { "id": "class.ListMaterialsTool", "label": "ListMaterialsTool" },
+          { "id": "class.ReadMaterialTool", "label": "ReadMaterialTool" },
+          { "id": "class.SummarizeMaterialTool", "label": "SummarizeMaterialTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ListMaterialsTool",
+      "kind": "class",
+      "name": "ListMaterialsTool",
+      "summary": "List files under ./materials with relative path, text line count, and human-readable file size.",
+      "tool_contract": {
+        "name": "list_materials",
+        "description": "List all files under ./materials with relative path, line count, and file size.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          }
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs) -> Union[str, Dict[str, Any]]",
+          "summary": "Scan materials recursively and return list text, with optional file-routing payload."
+        }
+      ]
+    },
+    {
+      "id": "class.ReadMaterialTool",
+      "kind": "class",
+      "name": "ReadMaterialTool",
+      "summary": "Read a text file inside ./materials by explicit line range and/or keyword-matched paragraphs.",
+      "tool_contract": {
+        "name": "read_material",
+        "description": "Read text content from a file inside ./materials by line range or keywords.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": { "type": "string" },
+            "start_line": { "type": "integer" },
+            "end_line": { "type": "integer" },
+            "keywords": { "type": "array", "items": { "type": "string" } },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["file_path"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None, keywords: Optional[List[str]] = None, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs) -> Union[str, Dict[str, Any]]",
+          "summary": "Resolve the target file safely, then return numbered lines/keyword matches. Can route output to file mode.",
+          "behavior": [
+            "Returns an explicit guidance message when neither line range nor keywords are provided.",
+            "Line ranges are 1-based and inclusive.",
+            "Keyword matching is paragraph-based and case-insensitive.",
+            "Supports file_path with optional materials/ prefix."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "class.SummarizeMaterialTool",
+      "kind": "class",
+      "name": "SummarizeMaterialTool",
+      "summary": "Summarize a supported text file under ./materials, optionally compressing the global summary with Gemini lite.",
+      "tool_contract": {
+        "name": "summarize_material",
+        "description": "Summarize a text file inside ./materials with a lite Gemini model and extract keywords for each paragraph.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": { "type": "string" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["file_path"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(file_path: str, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs) -> Union[str, Dict[str, Any]]",
+          "summary": "Return an overall summary, keywords, and per-paragraph summaries; can route output to file mode.",
+          "behavior": [
+            "Truncates source text to max_summary_chars before summarization.",
+            "Attempts Gemini compression first when GEMINI_KEY is configured.",
+            "Falls back to heuristic paragraph summarization when Gemini is unavailable or fails."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.materials_workflow",
+      "title": "Typical materials inspection flow",
+      "tags": ["materials", "tooling"],
+      "code_lines": [
+        "from src.tools.materials_manager import ListMaterialsTool, ReadMaterialTool, SummarizeMaterialTool",
+        "",
+        "list_tool = ListMaterialsTool(project_root='.')",
+        "read_tool = ReadMaterialTool(project_root='.')",
+        "summary_tool = SummarizeMaterialTool(project_root='.')",
+        "",
+        "print(list_tool.execute())",
+        "print(read_tool.execute(file_path='sony_a6700.txt', keywords=['sensor']))",
+        "print(summary_tool.execute(file_path='sony_a6700.txt'))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Path safety",
+      "content": "All tools are confined to the resolved ./materials directory. Paths escaping that root are rejected."
+    },
+    {
+      "topic": "Path normalization",
+      "content": "read/summarize accept file_path with optional materials/ or .\\materials\\ style prefix and normalize before resolution."
+    },
+    {
+      "topic": "History routing",
+      "content": "read_material and summarize_material support save_policy/output_target/output_path and may return structured payload for runtime file routing."
+    },
+    {
+      "topic": "Supported file types",
+      "content": "Text operations are limited to the built-in supported extension set such as .txt, .md, .json, .csv, .py, .yaml, .log, .html, and selected code files."
+    },
+    {
+      "topic": "Gemini-assisted compression",
+      "content": "SummarizeMaterialTool uses GEMINI_KEY and GEMINI_MODEL when available to compress the overall summary to 400 Chinese characters or fewer."
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "SkillRegistry 在啟動時掃描技能資料夾，載入 meta.json 與 instructions.md，並提供精確查詢與摘要列表。\n\ntype.Skill 描述的是記憶體中的技能物件欄位；class.SkillRegistry 則負責載入與 reload 語意（例如 load_skills() 會清空後重建）。\n\n缺檔的資料夾會被跳過並留下 log；這是刻意的容錯策略，方便在 skills/ 目錄逐步擴充。\n\n撰寫新的技能 SOP 請參考 [撰寫技能 SOP (Skill)](/docs/how-to/zh-Hant/07-skill-authoring.md)。",
+    "en": "`SkillRegistry` scans a skills directory at startup, loading `meta.json` + `instructions.md`, and exposes exact lookup plus human-readable summaries.\n\n`type.Skill` documents the in-memory record shape; `SkillRegistry.load_skills()` clears and rebuilds the registry for deterministic reloads.\n\nIncomplete folders are skipped with warnings—an intentional resilience pattern while you grow `skills/`.\n\nTo write new skill SOPs, see [Skill Authoring](/docs/how-to/en/07-skill-authoring.md).",
+    "ja": "`SkillRegistry` はスキルディレクトリを走査し、`meta.json` と `instructions.md` を読み込み、完全一致取得と要約一覧を提供します。\n\n`type.Skill` はメモリ上のレコード形、`load_skills()` はクリア後に再構築するなどリロード語義が明確です。\n\n不足ファイルがあるフォルダは警告付きでスキップされ、`skills/` を段階的に増やすための耐性設計です。\n\n新しいスキル SOP の執筆については [スキル SOP の執筆 (Skill)](/docs/how-to/ja/07-skill-authoring.md) を参照してください。"
+  },
+  "module": {
+    "name": "src.ai_core.skill_registry",
+    "source_paths": ["src/ai_core/skill_registry.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.skill_registry",
+        "label": "src.ai_core.skill_registry",
+        "children": [
+          { "id": "type.Skill", "label": "Skill" },
+          { "id": "class.SkillRegistry", "label": "SkillRegistry" }
+        ]
+      }
+    ]
+  },
+  "types": [
+    {
+      "id": "type.Skill",
+      "kind": "dataclass",
+      "name": "Skill",
+      "summary": "In-memory representation of one skill package loaded from the skills directory.",
+      "fields": [
+        { "name": "name", "type": "str", "description": "Skill identifier shown to the model." },
+        { "name": "description", "type": "str", "description": "Short skill summary used for lookup and skill listings." },
+        { "name": "instructions", "type": "str", "description": "Full markdown SOP loaded from instructions.md." },
+        { "name": "required_tools", "type": "List[str]", "description": "Optional declared tool dependencies from meta.json." }
+      ]
+    }
+  ],
+  "symbols": [
+    {
+      "id": "class.SkillRegistry",
+      "kind": "class",
+      "name": "SkillRegistry",
+      "import": "from src.ai_core.skill_registry import SkillRegistry",
+      "summary": "Load skill packages from disk and expose lookup-friendly summaries for the agent.",
+      "init": {
+        "signature": "SkillRegistry(skill_directory: str = 'skills')",
+        "params": [
+          { "name": "skill_directory", "type": "str", "default": "skills", "description": "Directory that contains per-skill folders with meta.json and instructions.md." }
+        ],
+        "behavior": {
+          "side_effects": "Creates the skill directory if missing, initializes an empty skills dict, then calls load_skills()."
+        }
+      },
+      "methods": [
+        {
+          "name": "load_skills",
+          "signature": "load_skills() -> None",
+          "summary": "Reload all skills from disk into memory.",
+          "behavior": [
+            "Clears self.skills before scanning so repeated reloads do not accumulate stale entries.",
+            "Scans skill folders in sorted name order for deterministic output.",
+            "Skips folders missing meta.json or instructions.md and logs a warning."
+          ]
+        },
+        {
+          "name": "get_skill",
+          "signature": "get_skill(skill_name: str) -> Optional[Skill]",
+          "summary": "Return a skill object by exact registered name."
+        },
+        {
+          "name": "get_skill_summaries",
+          "signature": "get_skill_summaries() -> str",
+          "summary": "Return a newline-delimited bullet list of available skills and their descriptions."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.skill_registry_list",
+      "title": "Load and inspect available skills",
+      "tags": ["skills", "registry"],
+      "code_lines": [
+        "from src.ai_core.skill_registry import SkillRegistry",
+        "",
+        "registry = SkillRegistry('skills')",
+        "print(registry.get_skill_summaries())",
+        "",
+        "video_planner = registry.get_skill('video_planner')",
+        "if video_planner:",
+        "    print(video_planner.required_tools)"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Folder contract",
+      "content": "Each skill folder is expected to contain both meta.json and instructions.md. Missing either file causes the folder to be skipped."
+    },
+    {
+      "topic": "Instructions are not executable",
+      "content": "SkillRegistry only loads text SOPs. Actual execution still happens through the model and registered tools, typically via LookupSkillTool."
+    },
+    {
+      "topic": "Reload behavior",
+      "content": "load_skills() rebuilds the entire registry from disk, which is useful after editing skill instructions during development."
+    }
+  ]
+}

@@ -1,0 +1,119 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.4.0",
+  "reader": {
+    "zh-Hant": "這個模組是 Agent 的組裝入口，現在支援工具白名單、workspace scope、readonly sub-agent 設定、session 壓縮設定與 history memory 壓縮設定。\n\n建議所有整合都透過 `create_agent_components()`，這樣 CLI / Web 的行為會一致。",
+    "en": "This is the composition root for the agent stack. It now supports tool whitelisting, workspace scoping, readonly sub-agent settings, session compression settings, and history memory compression settings.",
+    "ja": "エージェント構成の入口モジュールです。ツールホワイトリスト、workspace scope、readonly sub-agent 設定、session 圧縮設定、history memory 圧縮設定に対応しました。"
+  },
+  "module": {
+    "name": "src.agent_factory",
+    "source_paths": ["src/agent_factory.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.agent_factory",
+        "label": "src.agent_factory",
+        "children": [
+          { "id": "func.configure_logging", "label": "configure_logging" },
+          { "id": "func.create_agent_components", "label": "create_agent_components" },
+          { "id": "func.build_agent_runtime", "label": "build_agent_runtime" },
+          { "id": "func.build_demo_prompt", "label": "build_demo_prompt" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "func.configure_logging",
+      "kind": "function",
+      "name": "configure_logging",
+      "signature": "configure_logging() -> None",
+      "summary": "Initialize process-wide logging with INFO level and timestamp format."
+    },
+    {
+      "id": "func.create_agent_components",
+      "kind": "function",
+      "name": "create_agent_components",
+      "signature": "create_agent_components(conversation_id: str, *, storage_directory: str = 'chat_history', event_handler=None, provider: str = 'gemini', model: Optional[str] = None, api_key: Optional[str] = None, lm_api_url: Optional[str] = None, request_options: Optional[Dict[str, Any]] = None, workspace_scope: Optional[str] = None, enabled_tools: Optional[List[str]] = None, readonly_subagent_config: Optional[Dict[str, Any]] = None, compression_config: Optional[Dict[str, Any]] = None, history_memory_config: Optional[Dict[str, Any]] = None, enable_web_search_tool: bool = True) -> Dict[str, object]",
+      "summary": "Assemble prompt manager, skill registry, tools, llm, history, session, and runtime with configurable scope/compression, including crawler and safe HTTP tools.",
+      "returns": {
+        "type": "Dict[str, object]",
+        "description": "Includes project_root, tool_executor, runtime, system_prompt, and tool_factories."
+      },
+      "behavior": [
+        "Builds tool factories for scan/material/workspace/web/subagent tools, including web_topology_spider, dom_skeleton_xray, scrape_page_dom, http_request, and summarize_url_with_secondary_llm.",
+        "Registers video orchestration tools: manage_todo_list, list_video_templates, read_video_template, find_images, analyze_image, screenshot_and_review_html.",
+        "Registers html_worker_subagent with a dedicated worker tool map (write_workspace_file, read_worker_scoped_file, list/read video template tools).",
+        "Respects enabled_tools whitelist when registering tools.",
+        "Injects compression_config into AgentRuntime.",
+        "Injects history_memory_config into LocalChatHistory.",
+        "Allows toggling web_search registration via enable_web_search_tool.",
+        "AgentRuntime injects _conversation_id and _storage_directory into tool calls for tools that need host context (for example manage_todo_list)."
+      ]
+    },
+    {
+      "id": "func.build_agent_runtime",
+      "kind": "function",
+      "name": "build_agent_runtime",
+      "signature": "build_agent_runtime(conversation_id: str, *, storage_directory: str = 'chat_history', event_handler=None, provider: str = 'gemini', model: Optional[str] = None, api_key: Optional[str] = None, lm_api_url: Optional[str] = None, request_options: Optional[Dict[str, Any]] = None, workspace_scope: Optional[str] = None, enabled_tools: Optional[List[str]] = None, readonly_subagent_config: Optional[Dict[str, Any]] = None, compression_config: Optional[Dict[str, Any]] = None, history_memory_config: Optional[Dict[str, Any]] = None, enable_web_search_tool: bool = True) -> AgentRuntime",
+      "summary": "Wrapper returning the runtime entry from create_agent_components with the same configuration surface."
+    },
+    {
+      "id": "func.build_demo_prompt",
+      "kind": "function",
+      "name": "build_demo_prompt",
+      "signature": "build_demo_prompt() -> str",
+      "summary": "Return the built-in demo prompt text."
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.factory_scoped_tools",
+      "title": "Create runtime with scope and tool whitelist",
+      "tags": ["factory", "scope", "tools"],
+      "code_lines": [
+        "from src.agent_factory import create_agent_components",
+        "",
+        "components = create_agent_components(",
+        "    'demo-001',",
+        "    workspace_scope='materials',",
+        "    enabled_tools=['scan_workspace', 'read_workspace_file', 'web_search', 'web_topology_spider', 'dom_skeleton_xray', 'scrape_page_dom', 'http_request', 'summarize_url_with_secondary_llm', 'readonly_subagent'],",
+        "    compression_config={'keep_recent_tool_messages': 8},",
+        ")",
+        "runtime = components['runtime']"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Tool control",
+      "content": "enabled_tools filters which tools are registered to the main runtime."
+    },
+    {
+      "topic": "Scoped reading",
+      "content": "workspace_scope limits scan/read/summarize workspace tools to a subtree (for example ./materials)."
+    },
+    {
+      "topic": "Sub-agent setup",
+      "content": "readonly_subagent_config.default_allowed_tools controls the sub-agent tool whitelist."
+    },
+    {
+      "topic": "Crawler planning tools",
+      "content": "web_topology_spider, dom_skeleton_xray, scrape_page_dom, http_request, and summarize_url_with_secondary_llm are available in tool_factories and can be enabled for both main runtime and readonly sub-agent."
+    },
+    {
+      "topic": "HTML worker isolation",
+      "content": "html_worker_subagent uses worker_tool_factories separate from the host map; child tools cannot recurse into html_worker_subagent or readonly_subagent."
+    },
+    {
+      "topic": "TODO state file",
+      "content": "manage_todo_list persists JSON under <storage_directory>/todos/<conversation_id>.json; Web UI can poll GET /api/conversations/<id>/todos or listen for SSE todo_updated."
+    },
+    {
+      "topic": "Vision and screenshots",
+      "content": "analyze_image uses LMWrapper.analyze_image_bytes (Gemini inlineData or OpenAI-compatible vision). screenshot_and_review_html requires playwright installed and browsers present (see requirements.txt)."
+    }
+  ]
+}

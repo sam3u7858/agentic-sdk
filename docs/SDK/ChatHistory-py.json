@@ -1,0 +1,283 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "LocalChatHistory 現在支援 memory compression 與 sidecar archive。當訊息超過保留數量時，舊訊息會壓縮並寫入 `chat_history/.archive/<conversation_id>.json`。",
+    "en": "LocalChatHistory now supports memory compression with sidecar archive files. Older messages are compacted and archived under `chat_history/.archive/<conversation_id>.json`.",
+    "ja": "LocalChatHistory は memory compression と sidecar archive に対応しました。古いメッセージは圧縮され、`chat_history/.archive/<conversation_id>.json` に保存されます。"
+  },
+  "module": {
+    "name": "src.ai_core.history",
+    "source_paths": ["src/ai_core/history.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.history",
+        "label": "src.ai_core.history",
+        "children": [
+          { "id": "class.LocalChatHistory", "label": "LocalChatHistory" },
+          { "id": "class.MongoDBChatHistory", "label": "MongoDBChatHistory" },
+          { "id": "proto.IChatHistoryBackend", "label": "IChatHistoryBackend" },
+          { "id": "proto.ChatHistoryProvider", "label": "ChatHistoryProvider" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "proto.IChatHistoryBackend",
+      "kind": "protocol",
+      "name": "IChatHistoryBackend",
+      "summary": "Storage backend contract for conversation history providers.",
+      "methods": [
+        {
+          "name": "conversation_exists",
+          "signature": "conversation_exists(conversation_id: str) -> bool",
+          "summary": "Check whether a conversation record already exists."
+        },
+        {
+          "name": "create_conversation",
+          "signature": "create_conversation(conversation_id: str) -> None",
+          "summary": "Create an empty conversation record if it does not exist."
+        },
+        {
+          "name": "get_conversation",
+          "signature": "get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]",
+          "summary": "Load a conversation payload from storage."
+        },
+        {
+          "name": "add_message",
+          "signature": "add_message(conversation_id: str, message: Dict[str, Any]) -> None",
+          "summary": "Append a message into the conversation history."
+        },
+        {
+          "name": "list_conversations",
+          "signature": "list_conversations(skip: Optional[int] = None) -> List[str]",
+          "summary": "List conversation ids using the backend's pagination rule."
+        }
+      ]
+    },
+    {
+      "id": "proto.ChatHistoryProvider",
+      "kind": "protocol",
+      "name": "ChatHistoryProvider",
+      "summary": "Provider wrapper protocol exposing a backend attribute.",
+      "attributes": [
+        {
+          "name": "backend",
+          "type": "Optional[IChatHistoryBackend]",
+          "description": "Bound storage backend instance."
+        }
+      ]
+    },
+    {
+      "id": "class.LocalChatHistory",
+      "kind": "class",
+      "name": "LocalChatHistory",
+      "import": "from src.ai_core.history import LocalChatHistory",
+      "summary": "File-based chat history backend storing one JSON file per conversation.",
+      "init": {
+        "signature": "LocalChatHistory(storage_directory: str, memory_config: Optional[Dict[str, Any]] = None)",
+        "params": [
+          { "name": "storage_directory", "type": "str", "description": "Directory used to persist conversation JSON files." },
+          { "name": "memory_config", "type": "Dict[str, Any]|null", "default": null, "description": "Memory compression/archive policy (retain_recent_messages, archive_directory, entity limits, vector placeholder toggle)." }
+        ],
+        "behavior": {
+          "directory_creation": "Creates the storage directory with parents=True and exist_ok=True.",
+          "path_rule": "Each conversation is stored as {storage_directory}/{conversation_id}.json.",
+          "archive_rule": "Archive entries are stored as {storage_directory}/.archive/{conversation_id}.json."
+        }
+      },
+      "methods": [
+        {
+          "name": "conversation_exists",
+          "signature": "conversation_exists(conversation_id: str) -> bool",
+          "summary": "Check whether the corresponding conversation JSON file exists.",
+          "params": [
+            {
+              "name": "conversation_id",
+              "type": "str",
+              "description": "Conversation id used as file stem."
+            }
+          ],
+          "returns": {
+            "type": "bool",
+            "description": "True if the file exists, otherwise False."
+          }
+        },
+        {
+          "name": "create_conversation",
+          "signature": "create_conversation(conversation_id: str) -> None",
+          "summary": "Create a new conversation file if it does not already exist.",
+          "params": [
+            {
+              "name": "conversation_id",
+              "type": "str",
+              "description": "Conversation id used as file name stem."
+            }
+          ],
+          "behavior": [
+            "Does nothing if the conversation file already exists.",
+            "Initial payload contains conversation_id, messages=[], and created_at."
+          ],
+          "returns": { "type": "None" }
+        },
+        {
+          "name": "add_message",
+          "signature": "add_message(conversation_id: str, message: Dict[str, Any]) -> None",
+          "summary": "Ensure the conversation exists, append a timestamped copy, then optionally compress/archive older messages.",
+          "params": [
+            {
+              "name": "conversation_id",
+              "type": "str",
+              "description": "Target conversation id."
+            },
+            {
+              "name": "message",
+              "type": "Dict[str, Any]",
+              "description": "Message payload to append."
+            }
+          ],
+          "behavior": [
+            "Calls create_conversation() first to ensure base structure exists.",
+            "Loads the conversation again after creation.",
+            "Copies the input message before adding timestamp, so the caller's object is not mutated.",
+            "If memory compression is enabled and message count exceeds threshold, older messages are compacted and archived."
+          ],
+          "returns": { "type": "None" },
+          "raises": [
+            {
+              "type": "OSError",
+              "when": "conversation cannot be loaded immediately after creation",
+              "message_pattern": "could not be loaded after creation"
+            },
+            {
+              "type": "OSError",
+              "when": "saving the updated conversation file fails",
+              "source": "_save_to_file"
+            }
+          ]
+        },
+        {
+          "name": "get_conversation",
+          "signature": "get_conversation(conversation_id: str) -> Optional[Dict[str, Any]]",
+          "summary": "Load a conversation JSON file from disk.",
+          "params": [
+            {
+              "name": "conversation_id",
+              "type": "str",
+              "description": "Conversation id used as file name stem."
+            }
+          ],
+          "returns": {
+            "type": "Dict[str, Any] | null",
+            "description": "Parsed JSON payload, or null if the file does not exist."
+          },
+          "raises": [
+            {
+              "type": "OSError",
+              "when": "the file exists but cannot be opened or parsed as JSON",
+              "message_pattern": "Failed to load conversation"
+            }
+          ]
+        },
+        {
+          "name": "list_conversations",
+          "signature": "list_conversations(skip: Optional[int] = None) -> List[str]",
+          "summary": "List conversation ids ordered by file modification time descending.",
+          "params": [
+            {
+              "name": "skip",
+              "type": "int|null",
+              "default": null,
+              "description": "If null, returns only the latest 10 items. Otherwise skips the first N newest items and returns the rest."
+            }
+          ],
+          "returns": {
+            "type": "List[str]",
+            "description": "Conversation ids without the .json extension."
+          },
+          "behavior": [
+            "Files are sorted by st_mtime descending before slicing.",
+            "Default behavior is a latest-10 view, not a full listing."
+          ]
+        },
+        {
+          "name": "_get_path",
+          "signature": "_get_path(conversation_id: str) -> Path",
+          "summary": "Build the file path for a conversation id.",
+          "visibility": "internal"
+        },
+        {
+          "name": "_save_to_file",
+          "signature": "_save_to_file(conversation_id: str, conversation: Dict[str, Any]) -> None",
+          "summary": "Serialize conversation payload to JSON with UTF-8 and indentation.",
+          "visibility": "internal",
+          "behavior": [
+            "Writes JSON with ensure_ascii=False and indent=2."
+          ],
+          "raises": [
+            {
+              "type": "OSError",
+              "when": "the file cannot be written",
+              "message_pattern": "Failed to save conversation"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "class.MongoDBChatHistory",
+      "kind": "class",
+      "name": "MongoDBChatHistory",
+      "summary": "Placeholder for a future MongoDB-backed chat history implementation.",
+      "status": "stub",
+      "init": {
+        "signature": "MongoDBChatHistory()",
+        "params": [],
+        "behavior": {
+          "current": "Constructor exists but no storage behavior is implemented."
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.local_chat_history_basic",
+      "title": "Local chat history basic usage",
+      "tags": ["local", "chat-history", "json"],
+      "code_lines": [
+        "from src.ai_core.history import LocalChatHistory",
+        "",
+        "history = LocalChatHistory('chat_history')",
+        "history.create_conversation('demo-session')",
+        "history.add_message('demo-session', {'role': 'user', 'content': '你好'})",
+        "",
+        "conversation = history.get_conversation('demo-session')",
+        "recent_ids = history.list_conversations()",
+        "",
+        "print(conversation)",
+        "print(recent_ids)"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Storage format",
+      "content": "Each conversation is stored as a standalone JSON file, which makes the backend simple to inspect manually but not optimized for high concurrency."
+    },
+    {
+      "topic": "list_conversations default behavior",
+      "content": "Calling list_conversations() without skip does not return all ids; it returns the latest 10 by file modification time."
+    },
+    {
+      "topic": "Timestamp mutation safety",
+      "content": "add_message() copies the input message before injecting timestamp, so external caller state is preserved."
+    },
+    {
+      "topic": "Archive sidecar",
+      "content": "When message count exceeds retain_recent_messages, archived bundles are written to .archive with Level 0~3 records (raw, narrative, entities, vector placeholder)."
+    }
+  ]
+}

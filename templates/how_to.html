@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>How to use</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='app.css') }}"
+    />
+  </head>
+  <body>
+    <div class="docs-shell">
+      <aside class="docs-sidebar">
+        <div class="docs-sidebar-header">
+          <nav class="docs-nav-tabs" aria-label="Documentation sections">
+            <a
+              class="{% if docs_tab == 'sdk' %}active{% endif %}"
+              href="/docs"
+              >SDK</a
+            >
+            <a
+              class="{% if docs_tab == 'howto' %}active{% endif %}"
+              href="/docs/how-to"
+              >How to use</a
+            >
+          </nav>
+          <div class="docs-sidebar-title">How to use</div>
+          <div class="docs-lang-tabs" role="tablist" aria-label="Language">
+            {% for t in lang_tabs %}
+            <a
+              role="tab"
+              class="docs-lang-tab{% if t.active %} active{% endif %}"
+              href="{{ t.url }}"
+              >{{ t.label }}</a
+            >
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="docs-sidebar-content" aria-label="How-to pages">
+          {% for item in nav_items %}
+          <a
+            class="docs-sidebar-item docs-howto-nav-item{% if item.active %} active{% endif %}"
+            href="/docs/how-to/{{ lang }}/{{ item.slug }}"
+            >{{ item.title }}</a
+          >
+          {% endfor %}
+        </div>
+      </aside>
+
+      <main class="docs-content">
+        <header class="docs-topbar">
+          <div class="docs-breadcrumb">
+            <span class="docs-breadcrumb-pill">How-to</span>
+            <span class="docs-breadcrumb-text">{{ lang_label }} · {{ slug }}</span>
+          </div>
+        </header>
+
+        <div class="docs-body">
+          <article class="docs-section docs-md">{{ content_html }}</article>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,95 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "LookupSkillTool 用模糊比對從 SkillRegistry 取出技能的完整 SOP 文字。\n\n關鍵觀念：技能是「給模型閱讀的指示」，不是另一個可執行程式工具。模型不應把技能名稱當成 function name 去呼叫。\n\n查詢會正規化大小寫與標點後比對名稱與描述，找不到時工具會回傳可用技能摘要列表協助修正查詢。",
+    "en": "`LookupSkillTool` fuzzy-matches a query against the `SkillRegistry` and returns the full SOP markdown for the best match.\n\nKey idea: skills are **instructions for the model**, not executable tools. Do not treat a skill name like a callable function.\n\nQueries are normalized; on miss, the tool often returns a helpful list of available skill summaries.",
+    "ja": "`LookupSkillTool` は `SkillRegistry` からスキル SOP（手順書テキスト）をファジー検索で取り出します。\n\n重要：スキルは**モデル向けの指示文**であり、実行可能ツールではありません。スキル名を関数名のように呼び出してはいけません。\n\nクエリは正規化され、未ヒット時は利用可能スキル一覧の要約が返ることがあります。"
+  },
+  "module": {
+    "name": "src.tools.skill_manager",
+    "source_paths": ["src/tools/skill_manager.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.skill_manager",
+        "label": "src.tools.skill_manager",
+        "children": [
+          { "id": "class.LookupSkillTool", "label": "LookupSkillTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.LookupSkillTool",
+      "kind": "class",
+      "name": "LookupSkillTool",
+      "import": "from src.tools.skill_manager import LookupSkillTool",
+      "summary": "Search skill SOPs by fuzzy name/description matching and return the full instruction markdown for the first matching skill.",
+      "init": {
+        "signature": "LookupSkillTool(registry: Optional[SkillRegistry] = None, skill_registry: Optional[SkillRegistry] = None)",
+        "params": [
+          { "name": "registry", "type": "SkillRegistry|null", "default": null, "description": "Primary registry argument." },
+          { "name": "skill_registry", "type": "SkillRegistry|null", "default": null, "description": "Alias accepted for integration convenience." }
+        ],
+        "raises": [
+          { "type": "ValueError", "when": "neither registry nor skill_registry is provided", "message_pattern": "LookupSkillTool requires a SkillRegistry instance." }
+        ]
+      },
+      "tool_contract": {
+        "name": "lookup_skill",
+        "description": "Retrieve a domain-specific SOP or output format definition; skills are instructions only, not executable tools.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Keyword or phrase used to search for a skill."
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(query: str, **kwargs) -> str",
+          "summary": "Return the first fuzzy-matched skill instructions or an error listing available skill summaries."
+        },
+        {
+          "name": "_matches",
+          "signature": "_matches(skill_name: str, skill_description: str, normalized_query: str, query_tokens: List[str]) -> bool",
+          "summary": "Internal fuzzy matching helper using normalized substring and token-based checks.",
+          "visibility": "internal"
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.lookup_skill",
+      "title": "Fetch a skill SOP before generating output",
+      "tags": ["skills", "lookup"],
+      "code_lines": [
+        "from src.ai_core.skill_registry import SkillRegistry",
+        "from src.tools.skill_manager import LookupSkillTool",
+        "",
+        "registry = SkillRegistry('skills')",
+        "tool = LookupSkillTool(skill_registry=registry)",
+        "print(tool.execute(query='video planner'))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Instruction-only contract",
+      "content": "lookup_skill returns text SOP content. The retrieved skill name must not be called as a tool."
+    },
+    {
+      "topic": "Matching strategy",
+      "content": "Queries are normalized with casefold() and non-word removal, then matched against both skill name and description."
+    }
+  ]
+}

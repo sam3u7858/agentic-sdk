@@ -1,0 +1,137 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.2.0",
+  "reader": {
+    "zh-Hant": "此模組提供可受 scope 限制的唯讀檔案讀取與摘要工具，適合給 readonly sub-agent 或受控分析流程使用。",
+    "en": "This module provides scope-limited readonly file reading and summarization tools for controlled analysis and readonly sub-agent workflows.",
+    "ja": "このモジュールは scope 制限付きの readonly 読み取り/要約ツールを提供し、readonly sub-agent の分析フローに適しています。"
+  },
+  "module": {
+    "name": "src.tools.workspace_reader",
+    "source_paths": ["src/tools/workspace_reader.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.workspace_reader",
+        "label": "src.tools.workspace_reader",
+        "children": [
+          { "id": "class.ReadWorkspaceFileTool", "label": "ReadWorkspaceFileTool" },
+          { "id": "class.SummarizeWorkspaceFileTool", "label": "SummarizeWorkspaceFileTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ReadWorkspaceFileTool",
+      "kind": "class",
+      "name": "ReadWorkspaceFileTool",
+      "summary": "Read UTF-8 text files within configured workspace scope, optionally by line range.",
+      "tool_contract": {
+        "name": "read_workspace_file",
+        "description": "Read a text file inside the configured workspace scope by optional line range.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": { "type": "string" },
+            "start_line": { "type": "integer" },
+            "end_line": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["file_path"]
+        }
+      },
+      "import": "from src.tools.workspace_reader import ReadWorkspaceFileTool",
+      "init": {
+        "signature": "ReadWorkspaceFileTool(root_dir: str = '.', allowed_scope: Optional[str] = None)",
+        "params": [
+          { "name": "root_dir", "type": "str", "default": ".", "description": "Project root before optional scope subdirectory." },
+          { "name": "allowed_scope", "type": "str|null", "default": null, "description": "If set, workspace_root becomes resolve(root_dir / allowed_scope)." }
+        ]
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Return numbered lines for the requested inclusive 1-based range; if both line args omitted, returns full file.",
+          "behavior": [
+            "Paths must stay under workspace_root via relative_to; traversal outside scope is rejected.",
+            "UTF-8 / UTF-8-BOM decoding only; unsupported extensions return an explicit error listing allowed suffixes."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "class.SummarizeWorkspaceFileTool",
+      "kind": "class",
+      "name": "SummarizeWorkspaceFileTool",
+      "summary": "Summarize scoped workspace files and extract keywords with Gemini-assisted fallback logic.",
+      "tool_contract": {
+        "name": "summarize_workspace_file",
+        "description": "Summarize a text file inside the configured workspace scope and extract key topics.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "file_path": { "type": "string" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["file_path"]
+        }
+      },
+      "import": "from src.tools.workspace_reader import SummarizeWorkspaceFileTool",
+      "init": {
+        "signature": "SummarizeWorkspaceFileTool(root_dir: str = '.', allowed_scope: Optional[str] = None)",
+        "params": [
+          { "name": "root_dir", "type": "str", "default": ".", "description": "Project root before optional scope subdirectory." },
+          { "name": "allowed_scope", "type": "str|null", "default": null, "description": "Same resolution rules as ReadWorkspaceFileTool." }
+        ]
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(file_path: str, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Paragraph-level heuristics plus optional Gemini compression (GEMINI_KEY) for a short grounded summary block.",
+          "behavior": [
+            "Source text truncated to max_summary_chars (12000) before paragraph split.",
+            "Returns structured text including keywords and per-paragraph mini-summaries when applicable."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.workspace_reader_scoped",
+      "title": "Read and summarize under workspace_scope",
+      "tags": ["workspace", "readonly"],
+      "code_lines": [
+        "from src.tools.workspace_reader import ReadWorkspaceFileTool, SummarizeWorkspaceFileTool",
+        "",
+        "read_tool = ReadWorkspaceFileTool(root_dir='.', allowed_scope='materials')",
+        "sum_tool = SummarizeWorkspaceFileTool(root_dir='.', allowed_scope='materials')",
+        "",
+        "print(read_tool.execute(file_path='RE4_story.txt', start_line=1, end_line=40))",
+        "print(sum_tool.execute(file_path='RE4_story.txt'))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Scope safety",
+      "content": "Paths escaping configured scope are rejected via relative_to checks."
+    },
+    {
+      "topic": "File type support",
+      "content": "Only supported text-like extensions are accepted to avoid binary decoding issues."
+    },
+    {
+      "topic": "History routing",
+      "content": "Both tools support save_policy/output_target/output_path and may return structured payload for runtime-managed file persistence."
+    }
+  ]
+}

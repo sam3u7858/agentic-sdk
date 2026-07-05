@@ -1,0 +1,11 @@
+.env
+.venv
+chat_history
+__pycache__/
+memory/
+output/
+materials/
+*.log
+playwright-report/
+test-results/
+.playwright/

@@ -1,0 +1,72 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "此模組**不是** LLM 可呼叫的工具，而是 `http_request`、`scrape_page_dom` 等外向連線的共用安全層：驗證 URL、DNS 解析後的私有 IP 阻擋、敏感 HTTP 標頭剔除，以及回應 Content-Type 是否視為可內嵌文字。\n\n擴充新網路工具時應優先重用這裡的函式，以維持與現有工具一致的 SSRF 邊界。",
+    "en": "This module is **not** an LLM-callable tool. It is shared safety plumbing for outbound requests (used by `http_request`, `scrape_page_dom`, etc.): URL validation, private IP blocking after DNS, sensitive header stripping, and textual content-type checks.\n\nReuse these helpers when adding new network-facing tools to keep SSRF boundaries consistent.",
+    "ja": "このモジュールは LLM から呼べるツールではなく、`http_request` や `scrape_page_dom` など外向き通信の**共通安全層**です（URL 検証、DNS 後のプライベート IP 拒否、機微ヘッダ除去、テキスト扱い可能な Content-Type 判定）。\n\n新しいネットワーク系ツールではここを再利用し、SSRF 境界を揃えてください。"
+  },
+  "module": {
+    "name": "src.tools.network_safety",
+    "source_paths": ["src/tools/network_safety.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.network_safety",
+        "label": "src.tools.network_safety",
+        "children": [
+          { "id": "func.validate_outbound_url", "label": "validate_outbound_url" },
+          { "id": "func.sanitize_request_headers", "label": "sanitize_request_headers" },
+          { "id": "func.is_textual_content_type", "label": "is_textual_content_type" },
+          { "id": "func.is_json_content_type", "label": "is_json_content_type" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "func.validate_outbound_url",
+      "kind": "function",
+      "name": "validate_outbound_url",
+      "signature": "validate_outbound_url(url: str) -> Optional[str]",
+      "summary": "Return None if URL is allowed; otherwise return a short human-readable block reason.",
+      "behavior": [
+        "Only http/https schemes; netloc required; URL userinfo (user:pass@) rejected.",
+        "Literal IP hosts are checked with ipaddress; private/loopback/link-local/multicast/reserved/unspecified blocked.",
+        "Hostname localhost and *.local blocked; DNS via getaddrinfo must not resolve to private IPs."
+      ]
+    },
+    {
+      "id": "func.sanitize_request_headers",
+      "kind": "function",
+      "name": "sanitize_request_headers",
+      "signature": "sanitize_request_headers(headers: Optional[Dict[str, str]]) -> Dict[str, str]",
+      "summary": "Drop hop-by-hop or sensitive keys (host, cookie, authorization, proxy-authorization, x-forwarded-for, x-real-ip, etc.)."
+    },
+    {
+      "id": "func.is_textual_content_type",
+      "kind": "function",
+      "name": "is_textual_content_type",
+      "signature": "is_textual_content_type(content_type: str) -> bool",
+      "summary": "True for empty type, text/*, or types suggesting JSON/XML/JS/form-urlencoded."
+    },
+    {
+      "id": "func.is_json_content_type",
+      "kind": "function",
+      "name": "is_json_content_type",
+      "signature": "is_json_content_type(content_type: str) -> bool",
+      "summary": "True when lowercase content_type contains \"json\"."
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Not registered as BaseTool",
+      "content": "Agent factory does not expose network_safety to the model; it is imported by other tools only."
+    },
+    {
+      "topic": "DNS rebinding awareness",
+      "content": "validate_outbound_url resolves all getaddrinfo results and blocks if any mapped address is private/local."
+    }
+  ]
+}

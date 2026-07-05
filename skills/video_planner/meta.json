@@ -1,0 +1,5 @@
+{
+    "name": "video_planner",
+    "description": "當使用者要求規劃影片、製作腳本大綱、或安排內容結構時使用。它能將素材轉化為結構化 JSON。",
+    "required_tools": ["write_file"]
+  }

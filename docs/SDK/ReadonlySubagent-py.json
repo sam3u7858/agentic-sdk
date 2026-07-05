@@ -1,0 +1,101 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "ReadonlySubAgentTool 會在工具呼叫中啟動子 runtime，僅允許白名單工具，並強制禁止遞迴呼叫 `readonly_subagent`。",
+    "en": "ReadonlySubAgentTool spawns a child runtime inside a tool call, enforces tool whitelisting, and blocks recursive `readonly_subagent` calls.",
+    "ja": "ReadonlySubAgentTool はツール呼び出し内で子 runtime を起動し、ホワイトリスト制御と `readonly_subagent` 再帰禁止を適用します。"
+  },
+  "module": {
+    "name": "src.tools.readonly_subagent",
+    "source_paths": ["src/tools/readonly_subagent.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.readonly_subagent",
+        "label": "src.tools.readonly_subagent",
+        "children": [
+          { "id": "class.ReadonlySubAgentTool", "label": "ReadonlySubAgentTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ReadonlySubAgentTool",
+      "kind": "class",
+      "name": "ReadonlySubAgentTool",
+      "import": "from src.tools.readonly_subagent import ReadonlySubAgentTool",
+      "summary": "Launch readonly child runtime with restricted tools and return structured JSON result.",
+      "init": {
+        "signature": "ReadonlySubAgentTool(*, project_root: str, storage_directory: str = 'chat_history', provider: str = 'gemini', model: Optional[str] = None, api_key: Optional[str] = None, lm_api_url: Optional[str] = None, request_options: Optional[Dict[str, Any]] = None, default_allowed_tools: Optional[List[str]] = None, tool_factories: Optional[Dict[str, Callable[[], BaseTool]]] = None, prompt_name: str = 'system_core')",
+        "params": [
+          { "name": "project_root", "type": "str", "description": "Resolved project root for prompts and paths." },
+          { "name": "storage_directory", "type": "str", "default": "chat_history", "description": "Parent dir; subagent histories go under storage_directory/subagents/." },
+          { "name": "provider", "type": "str", "default": "gemini", "description": "Passed to child LMWrapper." },
+          { "name": "model", "type": "str|null", "default": null, "description": "Optional; Gemini defaults from GEMINI_MODEL env when None." },
+          { "name": "default_allowed_tools", "type": "List[str]|null", "default": null, "description": "Whitelist when allowed_tools argument is omitted on execute." },
+          { "name": "tool_factories", "type": "Dict", "default": null, "description": "name -> factory for BaseTool instances registered on child executor." }
+        ]
+      },
+      "tool_contract": {
+        "name": "readonly_subagent",
+        "description": "Spawn a readonly sub-agent for heavy reading and reasoning tasks.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "task": { "type": "string" },
+            "max_steps": { "type": "integer" },
+            "allowed_tools": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["task"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(task: str, max_steps: int = 8, allowed_tools: Optional[List[str]] = None, **kwargs: Any) -> str",
+          "summary": "Runs child agent task and returns JSON string with subagent_conversation_id, allowed_tools, and result.",
+          "behavior": [
+            "max_steps is clamped to [1, 24] via max(1, min(max_steps, 24)).",
+            "Non-Gemini providers require model to be set on the tool instance.",
+            "If allowed_tools is None, default_allowed_tools is used; readonly_subagent is always stripped from the effective list."
+          ]
+        },
+        {
+          "name": "_resolve_allowed_tools",
+          "signature": "_resolve_allowed_tools(allowed_tools: Optional[List[str]]) -> List[str]",
+          "summary": "Computes deterministic effective whitelist while always blocking readonly_subagent recursion.",
+          "visibility": "internal"
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.readonly_subagent_minimal",
+      "title": "Spawn sub-agent with factory map (integration pattern)",
+      "tags": ["subagent", "factory"],
+      "code_lines": [
+        "# Typical wiring is done in create_agent_components(); pseudo-code:",
+        "tool = ReadonlySubAgentTool(",
+        "    project_root='.',",
+        "    default_allowed_tools=['read_workspace_file', 'web_search'],",
+        "    tool_factories={'read_workspace_file': lambda: ReadWorkspaceFileTool('.'), 'web_search': lambda: SandboxWebSearchTool()},",
+        ")",
+        "print(tool.execute(task='Summarize repo README in 5 bullets', max_steps=6))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "No recursive subagents",
+      "content": "readonly_subagent is always blocked from child toolset even if requested."
+    },
+    {
+      "topic": "Web untrusted preface",
+      "content": "Child executor prepends </subagent> <subagent> warning text for web_search results to reduce prompt-injection risk."
+    }
+  ]
+}

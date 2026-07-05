@@ -1,0 +1,82 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.2.0",
+  "reader": {
+    "zh-Hant": "DOMSkeletonXrayTool 會抓取目標頁 HTML，剔除文字、圖片、腳本與噪音區塊，只保留具有 id/class/data-* 的結構骨架，並提供高頻 selector 建議。",
+    "en": "DOMSkeletonXrayTool fetches target HTML, strips text/images/scripts/noise blocks, preserves structural tags with id/class/data-* attributes, and returns high-frequency selector hints.",
+    "ja": "DOMSkeletonXrayTool は対象HTMLを取得し、テキスト・画像・スクリプト等を除去して id/class/data-* 属性を持つ構造骨格のみを保持し、頻出セレクタ候補を返します。"
+  },
+  "module": {
+    "name": "src.tools.dom_skeleton_xray",
+    "source_paths": ["src/tools/dom_skeleton_xray.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.dom_skeleton_xray",
+        "label": "src.tools.dom_skeleton_xray",
+        "children": [
+          { "id": "class.DOMSkeletonXrayTool", "label": "DOMSkeletonXrayTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.DOMSkeletonXrayTool",
+      "kind": "class",
+      "name": "DOMSkeletonXrayTool",
+      "summary": "Create a compressed DOM skeleton from a full web page for parser design.",
+      "tool_contract": {
+        "name": "dom_skeleton_xray",
+        "description": "Fetch and compress an HTML page into a structural skeleton while preserving key attributes.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "target_url": { "type": "string" },
+            "render_dynamic": { "type": "boolean" },
+            "dynamic_wait_ms": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["target_url"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(target_url: str, render_dynamic: bool = False, dynamic_wait_ms: int = 1500, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Returns JSON including skeleton_html, key_selectors, and render stats; supports file-routing payload."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.dom_skeleton_xray",
+      "title": "Extract structural skeleton from a page",
+      "tags": ["dom", "skeleton"],
+      "code_lines": [
+        "from src.tools.dom_skeleton_xray import DOMSkeletonXrayTool",
+        "",
+        "tool = DOMSkeletonXrayTool()",
+        "print(tool.execute(target_url='https://example.com', render_dynamic=False))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Structural retention",
+      "content": "Nodes are kept when they carry id/class/data-* attributes or are required to preserve child structure."
+    },
+    {
+      "topic": "Output size control",
+      "content": "Skeleton output is truncated by max_skeleton_chars to avoid oversized tool responses."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path so heavy skeleton output can be persisted to file."
+    }
+  ]
+}

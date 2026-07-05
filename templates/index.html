@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Debug UI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1>Agent Debug</h1>
+        <div class="sidebar-actions">
+          <button id="new-conversation" type="button">新對話</button>
+          <button id="refresh-conversations" type="button">重新整理</button>
+        </div>
+      </div>
+      <div id="conversation-list" class="conversation-list"></div>
+    </aside>
+
+    <main class="chat-panel">
+      <header class="panel-header">
+        <h2>Conversation</h2>
+        <div id="conversation-meta" class="conversation-meta">尚未選擇對話</div>
+      </header>
+      <section id="todo-panel" class="todo-panel" aria-label="TODO list">
+        <div class="todo-panel-header">TODO（與 manage_todo_list 同源）</div>
+        <ul id="todo-list" class="todo-list"></ul>
+      </section>
+      <section id="message-list" class="message-list"></section>
+      <div id="planning-indicator" class="planning-indicator hidden" aria-live="polite">
+        <span id="planning-label" class="planning-label">Planning Next Step</span>
+        <span class="planning-dots">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+      </div>
+      <form id="chat-form" class="chat-form">
+        <textarea id="prompt-input" placeholder="輸入要交給 Agent 的任務..." rows="4"></textarea>
+        <div class="chat-form-options">
+          <label class="chat-form-checkbox">
+            <input id="enable-grounding" type="checkbox">
+            啟用 Grounding（Google Search Built-in）
+          </label>
+          <label>
+            排除網域（逗號分隔）
+            <input id="exclude-domains" type="text" placeholder="example.com, reddit.com">
+          </label>
+        </div>
+        <div class="chat-form-actions">
+          <label>
+            Max steps
+            <input id="max-steps" type="number" min="1" max="30" value="12">
+          </label>
+          <button type="submit">送出</button>
+        </div>
+      </form>
+    </main>
+
+    <section class="debug-panel">
+      <header class="panel-header">
+        <h2>Debug Stream</h2>
+      </header>
+      <div id="event-stream" class="event-stream"></div>
+    </section>
+  </div>
+
+  <template id="message-template">
+    <article class="message">
+      <div class="message-role"></div>
+      <div class="message-content"></div>
+    </article>
+  </template>
+
+  <template id="event-template">
+    <article class="event-item">
+      <div class="event-type"></div>
+      <div class="event-content"></div>
+    </article>
+  </template>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

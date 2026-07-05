@@ -1,0 +1,85 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.2.0",
+  "reader": {
+    "zh-Hant": "SandboxWebSearchTool 會先做搜尋，再抓取目標頁面並做 HTML 無害化，最後包裝成 `<UNTRUSTED_WEB_DATA>` 文字輸出。",
+    "en": "SandboxWebSearchTool performs search + fetch, sanitizes HTML, and returns plaintext wrapped in `<UNTRUSTED_WEB_DATA>`.",
+    "ja": "SandboxWebSearchTool は検索とページ取得後に HTML をサニタイズし、`<UNTRUSTED_WEB_DATA>` で包んだテキストを返します。"
+  },
+  "module": {
+    "name": "src.tools.web_search",
+    "source_paths": ["src/tools/web_search.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.web_search",
+        "label": "src.tools.web_search",
+        "children": [
+          { "id": "class.SandboxWebSearchTool", "label": "SandboxWebSearchTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.SandboxWebSearchTool",
+      "kind": "class",
+      "name": "SandboxWebSearchTool",
+      "summary": "Controlled web search tool that sanitizes external content and marks it as untrusted.",
+      "tool_contract": {
+        "name": "web_search",
+        "description": "Search the web in a sandbox-like readonly mode, sanitize fetched pages, and return plain Markdown text wrapped with <UNTRUSTED_WEB_DATA> tags.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": { "type": "string" },
+            "max_results": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["query"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(query: str, max_results: int = 3, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Searches web providers, fetches/sanitizes pages, and supports runtime file-routing payload."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.web_search_query",
+      "title": "Run sandbox web search",
+      "tags": ["web", "search"],
+      "code_lines": [
+        "from src.tools.web_search import SandboxWebSearchTool",
+        "",
+        "tool = SandboxWebSearchTool()",
+        "print(tool.execute(query='python asyncio tutorial', max_results=2))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Provider order",
+      "content": "Optional env WEB_SEARCH_PROVIDER_ORDER is a comma-separated list such as serper,google_cse,duckduckgo to override default attempt order."
+    },
+    {
+      "topic": "Untrusted boundary",
+      "content": "All outputs are wrapped by <UNTRUSTED_WEB_DATA> to make trust boundary explicit."
+    },
+    {
+      "topic": "Sanitization",
+      "content": "script/style/noscript/iframe/svg/canvas and hidden/event-handler patterns are stripped before text conversion."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path to persist potentially large web search output as file-mode payload."
+    }
+  ]
+}

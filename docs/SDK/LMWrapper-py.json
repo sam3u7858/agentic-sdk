@@ -1,0 +1,358 @@
+{
+    "schema": "sdk.reference.v1",
+    "doc_version": "1.0.0",
+    "reader": {
+        "zh-Hant": "LMWrapper 是呼叫各供應商模型的統一入口；並行描述 OpenAI 相容後端與 Gemini 後端的差異設定鍵。\n\ntype.ChatMessage 描述對話訊息的結構化形狀（角色與內容），實際驗證發生在 _validate_messages() 一路。\n\n閱讀時請同時對照各 wrapper 的 init 參數：openai-like 需要 base URL，gemini 路徑則關注金鑰與模型字串。",
+        "en": "`LMWrapper` is the unified entrypoint for chat completions across providers, including OpenAI-compatible backends and Gemini.\n\n`type.ChatMessage` documents the structured message shape (role + content); validation happens along `_validate_messages()`.\n\nWhen reading symbols, cross-check `init` parameters: openai-like providers require a base URL; Gemini paths focus on keys and model ids.",
+        "ja": "`LMWrapper` は複数プロバイダ向けの統一入口です（OpenAI 互換と Gemini など）。\n\n`type.ChatMessage` はメッセージ構造（役割と本文）を表し、検証は `_validate_messages()` 側で行われます。\n\n各ラッパーの `init` を読み比べてください：互換系は base URL、Gemini 系は鍵とモデル文字列が焦点になります。"
+    },
+    "module": {
+      "name": "src.ai_core.llm",
+      "source_paths": ["src/ai_core/llm.py"]
+    },
+    "index": {
+      "sidebar": [
+        {
+          "id": "module.src.ai_core.llm",
+          "label": "src.ai_core.llm",
+          "children": [
+            { "id": "class.LMWrapper", "label": "LMWrapper" },
+            { "id": "class.OpenAIWrapper", "label": "OpenAIWrapper" },
+            { "id": "class.GeminiWrapper", "label": "GeminiWrapper" },
+            { "id": "type.ChatMessage", "label": "ChatMessage" },
+            { "id": "func._validate_messages", "label": "_validate_messages" },
+            { "id": "func.gemini_to_openai_like", "label": "gemini_to_openai_like" }
+          ]
+        }
+      ]
+    },
+    "types": [
+      {
+        "id": "type.ChatMessage",
+        "kind": "TypedDict",
+        "name": "ChatMessage",
+        "summary": "Chat message schema (validated at runtime).",
+        "fields": [
+          {
+            "name": "role",
+            "type": "Literal['user','assistant','system']",
+            "required": true
+          },
+          {
+            "name": "content",
+            "type": "str",
+            "required": true
+          }
+        ],
+        "notes": [
+          "Role validation is enforced by _validate_messages().",
+          "System messages are accepted by validator; LMWrapper also supports separate system_prompt."
+        ]
+      }
+    ],
+    "symbols": [
+      {
+        "id": "class.LMWrapper",
+        "kind": "class",
+        "name": "LMWrapper",
+        "import": "from src.ai_core.llm import LMWrapper",
+        "summary": "Unified entrypoint for chat completion across providers.",
+        "init": {
+          "signature": "LMWrapper(*, provider, model, api_key=None, lm_api_url=None, request_options=None)",
+          "params": [
+            {
+              "name": "provider",
+              "type": "str",
+              "allowed_values": ["local", "openai", "grok", "gemini"],
+              "description": "Required provider name."
+            },
+            {
+              "name": "model",
+              "type": "str",
+              "description": "Required model name."
+            },
+            {
+              "name": "api_key",
+              "type": "str|null",
+              "default": null,
+              "description": "API key passed directly to the selected backend."
+            },
+            {
+              "name": "lm_api_url",
+              "type": "str|null",
+              "default": null,
+              "description": "OpenAI-compatible base_url for providers local/openai/grok. Required for openai-like providers."
+            },
+            {
+              "name": "request_options",
+              "type": "object|null",
+              "default": null,
+              "description": "Optional provider request options. OpenAIWrapper forwards as kwargs; GeminiWrapper maps temperature/max_tokens. If omitted, LMWrapper uses an empty dict."
+            }
+          ],
+          "behavior": {
+            "initialization_mode": "imperative_only",
+            "config_fallback": "none"
+          },
+          "raises": [
+            {
+              "type": "ValueError",
+              "when": "provider is empty",
+              "message_pattern": "Missing 'provider' for LMWrapper initialization."
+            },
+            {
+              "type": "ValueError",
+              "when": "model is empty",
+              "message_pattern": "Missing 'model' for LMWrapper initialization."
+            },
+            {
+              "type": "ValueError",
+              "when": "provider is unsupported",
+              "message_pattern": "Unsupported LLM provider"
+            },
+            {
+              "type": "ValueError",
+              "when": "provider in ['local','openai','grok'] and final lm_api_url is empty",
+              "message_pattern": "Missing 'lm_api_url' for openai-like providers."
+            }
+          ],
+          "logging": [
+            {
+              "level": "INFO",
+              "message": "LMWrapper initialized with '{provider}' provider",
+              "when": "backend initialization succeeds"
+            },
+            {
+              "level": "ERROR",
+              "message": "Failed to initialize LMWrapper",
+              "when": "any exception during init"
+            }
+          ]
+        },
+        "methods": [
+          {
+            "name": "set_system_prompt",
+            "signature": "set_system_prompt(system_prompt: str) -> None",
+            "summary": "Set system prompt stored in LMWrapper.",
+            "params": [
+              {
+                "name": "system_prompt",
+                "type": "str",
+                "description": "System instruction passed to backend on each call."
+              }
+            ],
+            "returns": { "type": "None" },
+            "logging": [
+              {
+                "level": "INFO",
+                "message": "System prompt has been set in LMWrapper"
+              }
+            ]
+          },
+          {
+            "name": "get_completion",
+          "signature": "get_completion(messages: Sequence[Dict[str, Any]], tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]",
+          "summary": "Validate messages and invoke backend chat, returning a normalized assistant payload.",
+            "params": [
+              {
+                "name": "messages",
+                "type": "Sequence[Dict[str, Any]]",
+                "description": "Each item must include role and content."
+              }
+            ],
+            "returns": {
+              "type": "Dict[str, Any]",
+              "description": "Normalized assistant payload containing role, content, and optional tool_calls / gemini_content."
+            },
+            "raises": [
+              {
+                "type": "TypeError",
+                "when": "messages is not list/tuple or item is not dict or content is not str",
+                "source": "_validate_messages"
+              },
+              {
+                "type": "ValueError",
+                "when": "role not in allowed values",
+                "source": "_validate_messages"
+              },
+              {
+              "type": "LMWrapperNotInitializedError",
+              "when": "backend has not been initialized"
+            },
+            {
+              "type": "LMBackendError",
+                "when": "selected backend call fails"
+              }
+            ],
+            "logging": [
+              {
+                "level": "WARNING",
+                "message": "System prompt has not been set. Continuing without it.",
+                "when": "system_prompt is empty"
+              }
+            ]
+          },
+          {
+            "name": "analyze_image_bytes",
+            "signature": "analyze_image_bytes(*, prompt: str, image_bytes: bytes, mime_type: str, system_prompt: Optional[str] = None) -> str",
+            "summary": "Single-turn vision: Gemini inlineData or OpenAI-compatible image_url data URLs.",
+            "params": [
+              { "name": "prompt", "type": "str", "description": "User question about the image." },
+              { "name": "image_bytes", "type": "bytes", "description": "Raw image bytes." },
+              { "name": "mime_type", "type": "str", "description": "For example image/png or image/jpeg." },
+              { "name": "system_prompt", "type": "str|null", "description": "Overrides instance system prompt when set." }
+            ],
+            "returns": { "type": "str", "description": "Model text response." }
+          }
+        ]
+      },
+      {
+        "id": "class.OpenAIWrapper",
+        "kind": "class",
+        "name": "OpenAIWrapper",
+        "summary": "OpenAI-compatible chat backend using openai SDK.",
+        "methods": [
+          {
+            "name": "chat",
+        "signature": "chat(messages: Sequence[Dict[str, Any]], system_prompt: Optional[str]=None, tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]",
+            "behavior": [
+              "If system_prompt is provided, it is prepended as a system message.",
+              "Calls openai client chat.completions.create(model=..., messages=..., **request_options).",
+              "When tools are provided, wraps them with ToolAdapter.to_openai_tool() and sets tool_choice='auto'."
+            ],
+            "returns": {
+              "type": "Dict[str, Any]",
+              "description": "Assistant payload with role, content, and optional tool_calls."
+            },
+            "error_handling": {
+              "current": "Catches all exceptions, logs exception, and raises LMBackendError."
+            },
+            "logging": [
+              { "level": "ERROR", "message": "OpenAI API call failed", "when": "exception" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "class.GeminiWrapper",
+        "kind": "class",
+        "name": "GeminiWrapper",
+        "summary": "Gemini backend using HTTP requests to generateContent endpoint.",
+        "methods": [
+          {
+            "name": "chat",
+        "signature": "chat(messages: Sequence[Dict[str, Any]], system_prompt: Optional[str]=None, tools: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]",
+            "behavior": [
+              "Maps role 'assistant' -> Gemini role 'model'.",
+              "Uses systemInstruction for system prompt.",
+              "POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+              "Normalizes Gemini responses through gemini_to_openai_like()."
+            ],
+            "returns": {
+              "type": "Dict[str, Any]",
+              "description": "Assistant payload with role, content, optional tool_calls, and gemini_content."
+            },
+            "error_handling": {
+              "current": "Catches all exceptions, logs exception, and raises LMBackendError.",
+              "planned": "Add timeout + retry backoff (see docs/LMWrapper_手動修改建議_1_2.md)."
+            },
+            "logging": [
+              { "level": "ERROR", "message": "Gemini API call failed", "when": "exception" }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "func._validate_messages",
+        "kind": "function",
+        "name": "_validate_messages",
+        "signature": "_validate_messages(messages: Sequence[Dict[str, Any]]) -> List[ChatMessage]",
+        "summary": "Runtime validation for messages schema.",
+        "allowed_roles": ["user", "assistant", "system", "tool", "function"],
+        "raises": [
+          { "type": "TypeError", "when": "messages not list/tuple" },
+          { "type": "TypeError", "when": "messages[i] not dict" },
+          { "type": "ValueError", "when": "role invalid" },
+          { "type": "TypeError", "when": "content not str" }
+        ]
+      },
+      {
+        "id": "func.gemini_to_openai_like",
+        "kind": "function",
+        "name": "gemini_to_openai_like",
+        "signature": "gemini_to_openai_like(response_json) -> Dict[str, Any]",
+        "summary": "Convert Gemini generateContent JSON into the assistant payload shape expected by AgentRuntime.",
+        "returns": {
+          "type": "Dict[str, Any]",
+          "description": "Payload containing role, content, optional tool_calls, and gemini_content."
+        },
+        "raises": [
+          {
+            "type": "RuntimeError",
+            "when": "Gemini response does not contain the expected candidates/content structure"
+          }
+        ]
+      }
+    ],
+    "exceptions": [
+      {
+        "id": "exception.LMWrapperError",
+        "status": "current",
+        "summary": "Base runtime error for LM wrapper failures."
+      },
+      {
+        "id": "exception.LMWrapperNotInitializedError",
+        "status": "current",
+        "summary": "Raised when get_completion() is called before backend initialization."
+      },
+      {
+        "id": "exception.LMMessageValidationError",
+        "status": "current",
+        "summary": "Raised when message payloads fail shape or role validation."
+      },
+      {
+        "id": "exception.LMBackendError",
+        "status": "current",
+        "summary": "Raised when provider-specific backend requests fail."
+      }
+    ],
+    "examples": [
+      {
+        "id": "example.openai_explicit",
+        "title": "OpenAI explicit init",
+        "tags": ["openai", "explicit", "dotenv"],
+        "code_lines": [
+          "import os",
+          "from dotenv import load_dotenv",
+          "from src.ai_core.llm import LMWrapper",
+          "",
+          "load_dotenv()",
+          "openai_key = os.getenv('OPENAI_API_KEY', '')",
+          "",
+          "lm = LMWrapper(",
+          "    provider='openai',",
+          "    model='gpt-4.1-mini',",
+          "    api_key=openai_key,",
+          "    lm_api_url='https://api.openai.com/v1',",
+          "    request_options={'temperature': 0.2, 'max_tokens': 200}",
+          ")",
+          "lm.set_system_prompt('Answer in Traditional Chinese.')",
+          "print(lm.get_completion([{'role': 'user', 'content': '你是誰？'}]))"
+        ]
+      }
+    ],
+    "runtime_notes": [
+      {
+        "topic": "Logging",
+        "content": "This module uses logging.getLogger(__name__). Configure handlers/level in application entrypoint."
+      },
+      {
+        "topic": "Return payload shape",
+        "content": "get_completion() returns a normalized assistant dict, not plain text. AgentRuntime relies on optional tool_calls and gemini_content fields for multi-step tool execution."
+      },
+      {
+        "topic": "Explicit init",
+        "content": "For local/openai/grok providers, pass lm_api_url explicitly. For Gemini, provide api_key and model; request_options controls temperature, max_tokens, and timeout."
+      }
+    ]
+  }

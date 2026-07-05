@@ -1,0 +1,71 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "HTML worker 專用：受控讀寫（僅 templates/ 與 output/）。",
+    "en": "Scoped read/write helpers for the HTML worker (templates/ and output/ only).",
+    "ja": "HTML worker 向けのスコープ付き読み書き。"
+  },
+  "module": {
+    "name": "src.tools.worker_files",
+    "source_paths": ["src/tools/worker_files.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.worker_files",
+        "label": "src.tools.worker_files",
+        "children": [
+          { "id": "class.ReadWorkerScopedFileTool", "label": "ReadWorkerScopedFileTool" },
+          { "id": "class.WriteWorkspaceFileTool", "label": "WriteWorkspaceFileTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ReadWorkerScopedFileTool",
+      "kind": "class",
+      "name": "ReadWorkerScopedFileTool",
+      "import": "from src.tools.worker_files import ReadWorkerScopedFileTool",
+      "summary": "Read text files only under templates/ or output/ relative to project root.",
+      "tool_contract": {
+        "name": "read_worker_scoped_file",
+        "description": "Read a text file under templates/ or output/.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "relative_path": { "type": "string" },
+            "max_chars": { "type": "integer" }
+          },
+          "required": ["relative_path"]
+        }
+      }
+    },
+    {
+      "id": "class.WriteWorkspaceFileTool",
+      "kind": "class",
+      "name": "WriteWorkspaceFileTool",
+      "import": "from src.tools.worker_files import WriteWorkspaceFileTool",
+      "summary": "Write UTF-8 text only under output/.",
+      "tool_contract": {
+        "name": "write_workspace_file",
+        "description": "Create or overwrite a file under output/ only.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "relative_path": { "type": "string" },
+            "content": { "type": "string" }
+          },
+          "required": ["relative_path", "content"]
+        }
+      }
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Path safety",
+      "content": "Paths must not contain '..'; writes are confined to project output/ subtree."
+    }
+  ]
+}

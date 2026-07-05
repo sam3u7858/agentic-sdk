@@ -1,0 +1,84 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "PromptManager 從磁碟載入 Markdown 範本，並用 Template.safe_substitute 做變數替換。\n\n適合把「系統提示詞／角色設定」與程式碼分離；修改文案時通常只要改檔案不必重新部署核心邏輯（視你的載入策略而定）。\n\n替換不到的字占位符會盡量保留原樣，請在整合測試時確認必要變數是否齊全。\n\n提示詞工程建議請參考 [提示詞工程建議 (Prompt Engineering)](/docs/how-to/zh-Hant/08-prompt-engineering.md)。",
+    "en": "`PromptManager` loads markdown templates from disk and applies `Template.safe_substitute()` for variable injection.\n\nUse it to keep **system/role prompts** out of core code. Copy changes often mean editing files rather than Python modules (depending on how you reload templates).\n\nMissing placeholders are generally preserved; validate required variables in integration tests.\n\nFor advice on writing prompts, see [Prompt Engineering Tips](/docs/how-to/en/08-prompt-engineering.md).",
+    "ja": "`PromptManager` は Markdown テンプレートを読み込み、`Template.safe_substitute()` で変数埋め込みを行います。\n\n**システム／役割プロンプト**をコードから分離するのに向きます（再読込の仕組みは利用側次第）。\n\n未設定のプレースホルダは残りやすいので、結合テストで必須変数を確認してください。\n\nプロンプトエンジニアリングのアドバイスについては [プロンプトエンジニアリングのアドバイス](/docs/how-to/ja/08-prompt-engineering.md) を参照してください。"
+  },
+  "module": {
+    "name": "src.ai_core.prompt_manager",
+    "source_paths": ["src/ai_core/prompt_manager.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.prompt_manager",
+        "label": "src.ai_core.prompt_manager",
+        "children": [
+          { "id": "class.PromptManager", "label": "PromptManager" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.PromptManager",
+      "kind": "class",
+      "name": "PromptManager",
+      "import": "from src.ai_core.prompt_manager import PromptManager",
+      "summary": "Load markdown prompt templates from disk and apply Template.safe_substitute().",
+      "init": {
+        "signature": "PromptManager(prompt_directory: str)",
+        "params": [
+          { "name": "prompt_directory", "type": "str", "description": "Directory containing .md prompt templates." }
+        ],
+        "behavior": {
+          "side_effects": "Creates the prompt directory if missing."
+        }
+      },
+      "methods": [
+        {
+          "name": "load_prompt",
+          "signature": "load_prompt(template_name: str, **kwargs: Any) -> str",
+          "summary": "Load a markdown template named {template_name}.md and substitute variables safely.",
+          "params": [
+            { "name": "template_name", "type": "str", "description": "Template basename without .md suffix." },
+            { "name": "kwargs", "type": "Any", "description": "Values passed into Template.safe_substitute()." }
+          ],
+          "returns": {
+            "type": "str",
+            "description": "Rendered prompt content."
+          },
+          "raises": [
+            { "type": "FileNotFoundError", "when": "template file does not exist", "message_pattern": "Prompt template '{template_name}' not found." }
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.prompt_manager_render",
+      "title": "Render a prompt template",
+      "tags": ["prompt", "template"],
+      "code_lines": [
+        "from src.ai_core.prompt_manager import PromptManager",
+        "",
+        "manager = PromptManager('prompts')",
+        "system_prompt = manager.load_prompt('system_core', agent_name='AgentRuntime')",
+        "print(system_prompt)"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Filename convention",
+      "content": "load_prompt('system_core') resolves to prompts/system_core.md. Callers should omit the .md extension."
+    },
+    {
+      "topic": "Safe substitution",
+      "content": "Template.safe_substitute() leaves unknown placeholders untouched instead of raising, which is useful for partially parameterized prompts."
+    }
+  ]
+}

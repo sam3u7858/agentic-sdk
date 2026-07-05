@@ -1,0 +1,98 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.3.0",
+  "reader": {
+    "zh-Hant": "此模組提供會話壓縮策略：歷史工具訊息 Level 0~3 壓縮、工具結果立即壓縮、以及 assistant 內容漸進式壓縮。",
+    "en": "This module provides conversation compression strategies: historical tool-message Level 0-3 compression, immediate tool-result compression, and progressive assistant-content compression.",
+    "ja": "このモジュールは会話圧縮戦略を提供します。履歴ツールメッセージの Level 0-3 圧縮、ツール結果の即時圧縮、assistant 内容の段階的圧縮に対応します。"
+  },
+  "module": {
+    "name": "src.ai_core.compression",
+    "source_paths": ["src/ai_core/compression.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.compression",
+        "label": "src.ai_core.compression",
+        "children": [
+          { "id": "type.SessionCompressionConfig", "label": "SessionCompressionConfig" },
+          { "id": "class.SessionToolResultCompressor", "label": "SessionToolResultCompressor" }
+        ]
+      }
+    ]
+  },
+  "types": [
+    {
+      "id": "type.SessionCompressionConfig",
+      "kind": "dataclass",
+      "name": "SessionCompressionConfig",
+      "summary": "Policy values controlling how aggressively old tool messages are compressed.",
+      "fields": [
+        { "name": "keep_recent_tool_messages", "type": "int", "description": "Most recent tool messages kept at full fidelity." },
+        { "name": "level1_window", "type": "int", "description": "Window using metadata-only compression." },
+        { "name": "level2_window", "type": "int", "description": "Window using generic [TOOL_EXECUTED] markers." },
+        { "name": "enable_level3_collapse", "type": "bool", "description": "Whether to collapse older repeated tool traces into ActionLoop markers." },
+        { "name": "immediate_tool_token_limit", "type": "int", "description": "Base token threshold for immediate tool-result compression." },
+        { "name": "token_char_ratio", "type": "int", "description": "Character-to-token estimation ratio." },
+        { "name": "immediate_tool_char_budget", "type": "int", "description": "Character budget when compressing tool result." },
+        { "name": "assistant_token_limit", "type": "int", "description": "Base token threshold for assistant content compression." },
+        { "name": "assistant_char_budget", "type": "int", "description": "Character budget for assistant content compression." },
+        { "name": "tool_line_collapse_trigger", "type": "int", "description": "Line-count threshold to activate historical tool line collapsing." },
+        { "name": "tool_line_collapse_head", "type": "int", "description": "Head lines to keep when collapsing long tool output lines." },
+        { "name": "tool_line_collapse_tail", "type": "int", "description": "Tail lines to keep when collapsing long tool output lines." },
+        { "name": "tool_line_collapse_max_chars", "type": "int", "description": "Maximum character budget for collapsed tool preview content." },
+        { "name": "compress_min_step", "type": "int", "default": 4, "description": "No tool-output or history-tool compression until loop step exceeds this value (step > compress_min_step), unless a payload exceeds compress_min_chars." },
+        { "name": "compress_min_chars", "type": "int", "default": 40000, "description": "If any tool message body is longer than this (characters), compression may run even when step is still low." }
+      ]
+    }
+  ],
+  "symbols": [
+    {
+      "id": "class.SessionToolResultCompressor",
+      "kind": "class",
+      "name": "SessionToolResultCompressor",
+      "import": "from src.ai_core.compression import SessionToolResultCompressor",
+      "summary": "Compress old role='tool' messages into metadata, trace markers, and semantic ActionLoop summaries.",
+      "methods": [
+        {
+          "name": "compress_messages",
+          "signature": "compress_messages(messages: List[Dict[str, Any]], *, loop_step: Optional[int] = None) -> List[Dict[str, Any]]",
+          "summary": "Return a transformed message list where old tool entries are downgraded when the compress_min_step / compress_min_chars gate is passed; pass loop_step from AgentRuntime each turn."
+        },
+        {
+          "name": "compress_tool_result_progressive",
+          "signature": "compress_tool_result_progressive(tool_name: str, content: str, step: int, max_steps: int) -> Dict[str, Any]",
+          "summary": "Compress tool result with stronger limits as step progresses."
+        },
+        {
+          "name": "compress_assistant_content_progressive",
+          "signature": "compress_assistant_content_progressive(content: str, step: int, max_steps: int) -> Dict[str, Any]",
+          "summary": "Compress assistant text with progressively stronger limits over conversation steps."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.session_compression",
+      "title": "Compress an in-memory message list",
+      "tags": ["compression", "runtime"],
+      "code_lines": [
+        "from src.ai_core.compression import SessionCompressionConfig, SessionToolResultCompressor",
+        "",
+        "compressor = SessionToolResultCompressor(",
+        "    SessionCompressionConfig(keep_recent_tool_messages=6, level1_window=6, level2_window=10)",
+        ")",
+        "compressed = compressor.compress_messages(messages)",
+        "print(len(compressed))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Env overrides",
+      "content": "AGENT_TOOL_COMPRESS_MIN_STEP (default 4): compress only when runtime step is greater than this, or when a tool body exceeds AGENT_TOOL_COMPRESS_MIN_CHARS (default 40000). Same keys can be set via AgentRuntime compression_config: compress_min_step / compress_min_chars."
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "主代理（Orchestrator）用的 TODO 與影片模板 meta 讀取工具；不載入 base.html 全文。",
+    "en": "Orchestrator tools for TODO JSON state and video template metadata (not full HTML).",
+    "ja": "TODO 状態とテンプレート meta 読み取り（base.html 全文なし）のオーケストレーター向けツール。"
+  },
+  "module": {
+    "name": "src.tools.orchestrator_tools",
+    "source_paths": ["src/tools/orchestrator_tools.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.orchestrator_tools",
+        "label": "src.tools.orchestrator_tools",
+        "children": [
+          { "id": "class.ManageTodoListTool", "label": "ManageTodoListTool" },
+          { "id": "class.ListVideoTemplatesTool", "label": "ListVideoTemplatesTool" },
+          { "id": "class.ReadVideoTemplateTool", "label": "ReadVideoTemplateTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.ManageTodoListTool",
+      "kind": "class",
+      "name": "ManageTodoListTool",
+      "import": "from src.tools.orchestrator_tools import ManageTodoListTool",
+      "summary": "CRUD TODO items stored at <storage>/todos/<conversation_id>.json.",
+      "tool_contract": {
+        "name": "manage_todo_list",
+        "description": "Load or update orchestration TODO list for the current conversation.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": { "type": "string" },
+            "items": { "type": "array" },
+            "item_id": { "type": "string" },
+            "text": { "type": "string" },
+            "done": { "type": "boolean" }
+          },
+          "required": ["action"]
+        }
+      }
+    },
+    {
+      "id": "class.ListVideoTemplatesTool",
+      "kind": "class",
+      "name": "ListVideoTemplatesTool",
+      "import": "from src.tools.orchestrator_tools import ListVideoTemplatesTool",
+      "summary": "List templates/*/meta.json under project templates/.",
+      "tool_contract": {
+        "name": "list_video_templates",
+        "description": "List video HTML templates with meta.json summaries.",
+        "parameters": { "type": "object", "properties": {}, "required": [] }
+      }
+    },
+    {
+      "id": "class.ReadVideoTemplateTool",
+      "kind": "class",
+      "name": "ReadVideoTemplateTool",
+      "import": "from src.tools.orchestrator_tools import ReadVideoTemplateTool",
+      "summary": "Read meta.json and optional system_prompt excerpt for one template id.",
+      "tool_contract": {
+        "name": "read_video_template",
+        "description": "Read template meta and optional system_prompt.md (bounded); not base.html body.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "template_id": { "type": "string" },
+            "include_system_prompt": { "type": "boolean" }
+          },
+          "required": ["template_id"]
+        }
+      }
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Host context",
+      "content": "Requires _conversation_id injected by AgentRuntime.execute; use manage_todo_list only on host agent."
+    },
+    {
+      "topic": "SSE",
+      "content": "After mutations, tools may emit phase=todo_updated via _runtime_event_handler; runtime forwards todo_updated events."
+    }
+  ]
+}

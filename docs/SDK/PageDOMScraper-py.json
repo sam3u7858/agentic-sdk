@@ -1,0 +1,88 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.2.0",
+  "reader": {
+    "zh-Hant": "PageDOMScraperTool 用於抓取完整頁面內容，預設回傳 HTML DOM；可選擇允許 JSON/非 HTML 文字內容，並套用安全的外連政策。",
+    "en": "PageDOMScraperTool fetches full page content, returning HTML DOM by default and optionally allowing JSON/non-HTML text under outbound safety policy.",
+    "ja": "PageDOMScraperTool は通常 HTML DOM を返し、必要時に JSON/非 HTML テキストを許可できます。外向き通信の安全ポリシーを適用します。"
+  },
+  "module": {
+    "name": "src.tools.page_dom_scraper",
+    "source_paths": ["src/tools/page_dom_scraper.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.page_dom_scraper",
+        "label": "src.tools.page_dom_scraper",
+        "children": [
+          { "id": "class.PageDOMScraperTool", "label": "PageDOMScraperTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.PageDOMScraperTool",
+      "kind": "class",
+      "name": "PageDOMScraperTool",
+      "summary": "Fetch full HTML DOM for parser development and debugging.",
+      "tool_contract": {
+        "name": "scrape_page_dom",
+        "description": "Fetch full page HTML DOM from a URL with optional dynamic rendering.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "url": { "type": "string" },
+            "render_dynamic": { "type": "boolean" },
+            "dynamic_wait_ms": { "type": "integer" },
+            "allow_non_html": { "type": "boolean" },
+            "accept_json": { "type": "boolean" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["url"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(url: str, render_dynamic: bool = True, dynamic_wait_ms: int = 1800, allow_non_html: bool = False, accept_json: bool = False, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Returns HTML DOM by default; can return JSON/non-HTML text when explicitly allowed, with render/safety metadata."
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.scrape_page_dom_static",
+      "title": "Fetch DOM with static HTTP",
+      "tags": ["dom", "http"],
+      "code_lines": [
+        "from src.tools.page_dom_scraper import PageDOMScraperTool",
+        "",
+        "tool = PageDOMScraperTool()",
+        "print(tool.execute(url='https://example.com', render_dynamic=False)[:2000])"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Dynamic fallback",
+      "content": "When dynamic rendering is requested but unavailable, tool falls back to static HTTP and records render_notice."
+    },
+    {
+      "topic": "Non-HTML handling",
+      "content": "By default, non-HTML content is rejected. Set accept_json=true (or allow_non_html=true) to return textual JSON/non-HTML bodies."
+    },
+    {
+      "topic": "Outbound safety",
+      "content": "Requests to localhost/private IP targets are blocked by safety policy before network fetch."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path to avoid large inline DOM payloads in conversation history."
+    }
+  ]
+}

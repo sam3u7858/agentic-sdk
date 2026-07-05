@@ -1,0 +1,78 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.0.0",
+  "reader": {
+    "zh-Hant": "analyze_image 與 screenshot_and_review_html；依賴 LMWrapper 多模態與可選 Playwright。",
+    "en": "analyze_image and screenshot QA via LMWrapper vision + optional Playwright.",
+    "ja": "マルチモーダル LLM と Playwright による画像・スクリーンショット QA。"
+  },
+  "module": {
+    "name": "src.tools.vision_tools",
+    "source_paths": ["src/tools/vision_tools.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.vision_tools",
+        "label": "src.tools.vision_tools",
+        "children": [
+          { "id": "class.AnalyzeImageTool", "label": "AnalyzeImageTool" },
+          { "id": "class.ScreenshotReviewHtmlTool", "label": "ScreenshotReviewHtmlTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.AnalyzeImageTool",
+      "kind": "class",
+      "name": "AnalyzeImageTool",
+      "import": "from src.tools.vision_tools import AnalyzeImageTool",
+      "summary": "Fetch http(s) image or read templates/output/materials path; one-shot vision call.",
+      "tool_contract": {
+        "name": "analyze_image",
+        "description": "Analyze an image with the configured vision model.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "question": { "type": "string" },
+            "image_url": { "type": "string" },
+            "image_path": { "type": "string" }
+          },
+          "required": ["question"]
+        }
+      }
+    },
+    {
+      "id": "class.ScreenshotReviewHtmlTool",
+      "kind": "class",
+      "name": "ScreenshotReviewHtmlTool",
+      "import": "from src.tools.vision_tools import ScreenshotReviewHtmlTool",
+      "summary": "Headless Chromium screenshot then vision QA report.",
+      "tool_contract": {
+        "name": "screenshot_and_review_html",
+        "description": "Screenshot local HTML or allowed URL, return brief visual QA.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "relative_html_path": { "type": "string" },
+            "page_url": { "type": "string" },
+            "viewport_width": { "type": "integer" },
+            "viewport_height": { "type": "integer" }
+          },
+          "required": []
+        }
+      }
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Playwright",
+      "content": "Install playwright package and run: python -m playwright install chromium"
+    },
+    {
+      "topic": "LMWrapper.analyze_image_bytes",
+      "content": "Defined on GeminiWrapper (inlineData) and OpenAIWrapper (image_url data URLs)."
+    }
+  ]
+}

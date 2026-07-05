@@ -1,0 +1,101 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.3.0",
+  "reader": {
+    "zh-Hant": "AgentRuntime 是多步驟工具迴圈核心。新版支援：工具結果結構化路由（inline/file）、每步漸進式壓縮、以及 debug/logger 欄位剝離後落檔。",
+    "en": "AgentRuntime is the autonomous tool loop core. The updated version supports structured tool-result routing (inline/file), progressive per-step compression, and debug-field detachment to files.",
+    "ja": "AgentRuntime は自律ツールループの中核です。新版では構造化ツール結果ルーティング（inline/file）、ステップ進行に応じた圧縮強化、debug フィールドのファイル退避に対応します。"
+  },
+  "module": {
+    "name": "src.ai_core.runtime",
+    "source_paths": ["src/ai_core/runtime.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.ai_core.runtime",
+        "label": "src.ai_core.runtime",
+        "children": [
+          { "id": "class.AgentRuntime", "label": "AgentRuntime" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.AgentRuntime",
+      "kind": "class",
+      "name": "AgentRuntime",
+      "import": "from src.ai_core.runtime import AgentRuntime",
+      "summary": "Autonomous multi-step loop with marker-based stop control, structured tool-result routing, event emission, and progressive compression.",
+      "init": {
+        "signature": "AgentRuntime(session: ChatSession, tool_executor: Optional[ToolExecutor] = None, event_handler: Optional[Callable[[Dict[str, Any]], None]] = None, compression_config: Optional[Dict[str, Any]] = None)",
+        "params": [
+          { "name": "session", "type": "ChatSession", "description": "Conversation session containing llm, history backend, and conversation id." },
+          { "name": "tool_executor", "type": "ToolExecutor|null", "default": null, "description": "Tool registry/executor." },
+          { "name": "event_handler", "type": "callable|null", "default": null, "description": "Runtime event callback sink for UI/observers." },
+          { "name": "compression_config", "type": "Dict[str, Any]|null", "default": null, "description": "Session compression policy passed to SessionToolResultCompressor." }
+        ]
+      },
+      "methods": [
+        {
+          "name": "run",
+          "signature": "run(user_message: str, max_steps: int = 10) -> str",
+          "summary": "Run autonomous steps until final marker, ask-user marker, or max-step stop.",
+          "behavior": [
+            "Writes initial user message to history.",
+            "Reads history then compresses context for model input.",
+            "Executes tool_calls and normalizes tool result payload.",
+            "Supports history_mode=inline|file (file mode persists content under ./memory or ./materials).",
+            "Detaches large debug/logger fields from inline JSON and stores them as files.",
+            "Emits structured events (tool_requested, tool_progress, tool_result, tool_result_compressed, assistant_content_compressed, final_answer, error)."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.runtime_with_compression",
+      "title": "Run runtime with compression policy",
+      "tags": ["runtime", "compression"],
+      "code_lines": [
+        "from src.agent_factory import create_agent_components",
+        "",
+        "components = create_agent_components(",
+        "    'demo-runtime',",
+        "    compression_config={",
+        "        'keep_recent_tool_messages': 6,",
+        "        'enable_level3_collapse': True,",
+        "        'immediate_tool_token_limit': 32500,",
+        "        'assistant_token_limit': 24000,",
+        "    },",
+        ")",
+        "runtime = components['runtime']",
+        "print(runtime.run('請分析 materials 檔案', max_steps=8))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Termination contract",
+      "content": "Loop termination still depends on FINAL_MARKERS, ASK_USER_MARKERS, or max_steps."
+    },
+    {
+      "topic": "Compressed model context",
+      "content": "Older tool messages may be compacted for model input while persisted history remains traceable."
+    },
+    {
+      "topic": "History routing",
+      "content": "Tool payload may request history_mode=file. Runtime then stores full content to disk and keeps only concise path+preview in conversation history."
+    },
+    {
+      "topic": "Memory output compression policy",
+      "content": "When history_mode=file and output_target=memory, runtime skips automatic tool-result compression by default. To force compression before saving, set memory_compress=true (or memory-compress=true) in tool call payload."
+    },
+    {
+      "topic": "Debug detachment",
+      "content": "When inline JSON contains debug_logs/logs/trace-style fields, runtime detaches these fields to a file and injects debug_note into history content."
+    }
+  ]
+}

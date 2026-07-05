@@ -1,0 +1,103 @@
+{
+  "schema": "sdk.reference.v1",
+  "doc_version": "1.1.0",
+  "reader": {
+    "zh-Hant": "HttpRequestTool 提供安全的外部 HTTP 請求能力，支援 method/url/params/data/json/headers，回傳 status_code、content_type 與 body。",
+    "en": "HttpRequestTool provides safe outbound HTTP requests with method/url/params/data/json/headers and returns status_code, content_type, and body.",
+    "ja": "HttpRequestTool は安全な外向き HTTP リクエストを提供し、method/url/params/data/json/headers と status_code/content_type/body を返します。"
+  },
+  "module": {
+    "name": "src.tools.http_request",
+    "source_paths": ["src/tools/http_request.py"]
+  },
+  "index": {
+    "sidebar": [
+      {
+        "id": "module.src.tools.http_request",
+        "label": "src.tools.http_request",
+        "children": [
+          { "id": "class.HttpRequestTool", "label": "HttpRequestTool" }
+        ]
+      }
+    ]
+  },
+  "symbols": [
+    {
+      "id": "class.HttpRequestTool",
+      "kind": "class",
+      "name": "HttpRequestTool",
+      "import": "from src.tools.http_request import HttpRequestTool",
+      "summary": "Send safe HTTP requests and return structured response payload.",
+      "init": {
+        "signature": "HttpRequestTool(timeout: int = 20, max_body_chars: int = 120000)",
+        "params": [
+          { "name": "timeout", "type": "int", "default": 20, "description": "Default seconds cap when timeout_seconds argument omitted (execute clamps to 1..120)." },
+          { "name": "max_body_chars", "type": "int", "default": 120000, "description": "Truncate textual response bodies beyond this length." }
+        ]
+      },
+      "tool_contract": {
+        "name": "http_request",
+        "description": "Send a safe outbound HTTP request and return status_code/content_type/body.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "method": { "type": "string" },
+            "url": { "type": "string" },
+            "params": { "type": "object" },
+            "data": { "type": "string" },
+            "json": { "type": "string" },
+            "headers": { "type": "object" },
+            "timeout_seconds": { "type": "integer" },
+            "save_policy": { "type": "string", "enum": ["inline", "file"] },
+            "output_target": { "type": "string", "enum": ["memory", "materials"] },
+            "output_path": { "type": "string" }
+          },
+          "required": ["url"]
+        }
+      },
+      "methods": [
+        {
+          "name": "execute",
+          "signature": "execute(url: str, method: str = 'GET', params: Optional[Dict[str, Any]] = None, data: Any = None, json: Any = None, headers: Optional[Dict[str, Any]] = None, timeout_seconds: Optional[int] = None, save_policy: str = 'inline', output_target: str = 'memory', output_path: Optional[str] = None, **kwargs: Any) -> Union[str, Dict[str, Any]]",
+          "summary": "Performs outbound request under safety constraints; json should be passed as JSON string and is parsed before request.",
+          "behavior": [
+            "Allowed methods include GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS.",
+            "data and json are mutually exclusive on the wire.",
+            "Returns JSON string of a dict with url, method, status_code, ok, content_type, body, blocked_non_text_body, etc."
+          ]
+        }
+      ]
+    }
+  ],
+  "examples": [
+    {
+      "id": "example.http_request_get",
+      "title": "Safe GET with JSON response body",
+      "tags": ["http", "safety"],
+      "code_lines": [
+        "from src.tools.http_request import HttpRequestTool",
+        "",
+        "tool = HttpRequestTool()",
+        "print(tool.execute(url='https://httpbin.org/get', method='GET'))"
+      ]
+    }
+  ],
+  "runtime_notes": [
+    {
+      "topic": "Outbound safety policy",
+      "content": "Blocks localhost/private/reserved IP targets (including DNS-resolved private addresses) to reduce SSRF risk."
+    },
+    {
+      "topic": "Header sanitization",
+      "content": "Sensitive or hop-by-hop headers such as Host/Cookie/Authorization/Proxy-Authorization are stripped."
+    },
+    {
+      "topic": "Body safety",
+      "content": "Non-text/binary response bodies are not inlined; textual responses are truncated to configured size."
+    },
+    {
+      "topic": "History routing",
+      "content": "Supports save_policy/output_target/output_path for large response payload routing."
+    }
+  ]
+}
