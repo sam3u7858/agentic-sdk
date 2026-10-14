@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Agent Workbench</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='agent_ui.css') }}" />
+</head>
+<body>
+<div class="app">
+  <!-- 伺服器列（Discord rail） -->
+  <nav class="rail">
+    <button class="rail-btn active" data-filter="all" title="全部對話">⌂</button>
+    <div class="rail-sep"></div>
+    <button class="rail-btn" data-filter="video" title="影片任務（anim_thin）">🎬</button>
+    <button class="rail-btn" data-filter="chat" title="一般對話">💬</button>
+    <button class="rail-btn" data-filter="sub" title="子代理">🧩</button>
+    <div class="rail-grow"></div>
+    <a class="rail-btn" href="/" title="舊版除錯 UI">⚙</a>
+  </nav>
+
+  <!-- 頻道列 -->
+  <aside class="channels">
+    <header class="ch-head">
+      <span class="ch-title" id="filterTitle">全部對話</span>
+      <button class="icon-btn" id="newTaskBtn" title="新任務">＋</button>
+    </header>
+    <input class="ch-search" id="chSearch" placeholder="搜尋對話…" />
+    <div class="ch-list" id="chList"></div>
+    <footer class="ch-foot">
+      <div class="me-avatar">🧑</div>
+      <div class="me-info"><div class="me-name">You</div><div class="me-status" id="modelBadge">—</div></div>
+      <button class="icon-btn" id="settingsBtn" title="模型設定">⚙</button>
+    </footer>
+  </aside>
+
+  <!-- 對話主區 -->
+  <main class="chat">
+    <header class="chat-head">
+      <span class="hash">#</span>
+      <span class="chat-title" id="chatTitle">新任務</span>
+      <span class="pill" id="statusPill">idle</span>
+      <div class="grow"></div>
+      <button class="icon-btn" id="togglePanel" title="工作面板">▤</button>
+    </header>
+    <div class="feed" id="feed">
+      <div class="empty" id="emptyState">
+        <div class="empty-icon">✦</div>
+        <h2>開一個新任務</h2>
+        <p>左邊選對話，或在下方輸入任務。<br />選「🎬 影片」模式會載入 aam 工具與 anim_thin 技能。</p>
+        <div class="quick" id="quickList"></div>
+      </div>
+    </div>
+    <form class="composer" id="composer">
+      <div class="composer-box">
+        <select id="profileSel" title="Agent 模式">
+          <option value="general">💬 一般</option>
+          <option value="anim_thin">🎬 影片（anim_thin）</option>
+        </select>
+        <textarea id="prompt" rows="1" placeholder="傳訊息給 Agent…（Enter 送出，Shift+Enter 換行）"></textarea>
+        <input id="maxSteps" type="number" min="1" max="400" value="40" title="max_steps" />
+        <button class="send" type="submit" title="送出">➤</button>
+      </div>
+    </form>
+  </main>
+
+  <!-- Codex 風格工作面板 -->
+  <aside class="panel" id="panel">
+    <section>
+      <h3>執行</h3>
+      <dl class="meta" id="runMeta"></dl>
+    </section>
+    <section>
+      <h3>計畫 <span class="sub" id="todoCount"></span></h3>
+      <ul class="todos" id="todoList"><li class="muted">（無）</li></ul>
+    </section>
+    <section>
+      <h3>工具時間軸</h3>
+      <ol class="timeline" id="timeline"></ol>
+    </section>
+    <section>
+      <h3>產出</h3>
+      <div class="artifacts" id="artifacts"><span class="muted">（無）</span></div>
+    </section>
+  </aside>
+</div>
+
+<!-- 設定 -->
+<dialog id="settingsDlg">
+  <form method="dialog" class="dlg">
+    <h3>模型設定（只影響新任務）</h3>
+    <label>Provider
+      <select id="cfgProvider"><option value="">（伺服器預設）</option><option>gemini</option><option>local</option><option>openai</option></select>
+    </label>
+    <label>Model <input id="cfgModel" placeholder="例如 gemma4-26b-a4b-uncensored-hauhaucs-balanced" /></label>
+    <label>API URL <input id="cfgUrl" placeholder="http://127.0.0.1:1234/v1" /></label>
+    <div class="dlg-row"><button value="cancel">取消</button><button value="ok" class="primary" id="cfgSave">儲存</button></div>
+  </form>
+</dialog>
+
+<div class="lightbox" id="lightbox"><img id="lbImg" /><video id="lbVid" controls></video></div>
+<script src="{{ url_for('static', filename='agent_ui.js') }}"></script>
+</body>
+</html>

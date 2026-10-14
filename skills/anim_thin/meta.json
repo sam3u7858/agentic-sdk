@@ -1,0 +1,5 @@
+{
+  "name": "anim_thin",
+  "description": "用 aam CLI 工具把題目資料夾（brief.md＋media/）做成 8–12 段的 16:9 動畫短片（anim-thin／video-set-thin）。",
+  "required_tools": ["aam", "aam_media_sheet", "aam_storyboard_segment", "aam_storyboard_commit", "aam_snap_review"]
+}

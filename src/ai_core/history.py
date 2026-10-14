@@ -164,9 +164,12 @@ class LocalChatHistory:
         archive_data = self._load_archive(conversation_id)
         compressed_count = 0
 
+        # 第一則使用者訊息是任務本身（題目、要求），封存掉模型就不知道自己在做什麼
+        first_user = next((i for i, m in enumerate(messages) if m.get("role") == "user"), None)
+
         for idx in range(cutoff):
             message = messages[idx]
-            if message.get("archive_ref"):
+            if message.get("archive_ref") or idx == first_user:
                 continue
 
             archive_ref = f"arc_{datetime.now().strftime('%Y%m%d%H%M%S')}_{idx}"

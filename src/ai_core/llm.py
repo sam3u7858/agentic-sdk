@@ -2,6 +2,7 @@ import base64
 import copy
 import json
 import os
+import re
 import uuid
 import openai
 import requests
@@ -96,6 +97,154 @@ class ToolAdapter:
         }
 
 
+_THINK_RE = re.compile(r"<(think|thinking|thought)>(.*?)</\1>\s*", re.S | re.I)
+
+
+def _split_reasoning(msg: Any) -> tuple:
+    """取出模型的思考過程：LM Studio／vLLM 放在 reasoning_content 或 reasoning；
+    也有模型直接把 <think>…</think> 寫在 content 裡。回傳 (content, reasoning)。"""
+    content = msg.content or ""
+    extra = getattr(msg, "model_extra", None) or {}
+    reasoning = extra.get("reasoning_content") or extra.get("reasoning") or ""
+    if not isinstance(reasoning, str):
+        reasoning = str(reasoning)
+    found = _THINK_RE.findall(content)
+    if found:
+        reasoning = "\n\n".join([reasoning] + [body.strip() for _, body in found]).strip()
+        content = _THINK_RE.sub("", content).strip()
+    return content, reasoning.strip()
+
+
+def _text_tool_instructions(tools: List[Dict[str, Any]]) -> str:
+    lines = ["## 可用工具"]
+    for t in tools:
+        params = json.dumps(t.get("parameters") or {}, ensure_ascii=False)
+        lines.append(f"- {t['name']}：{t.get('description', '')}\n  參數（JSON Schema）：{params}")
+    lines += ["", "## 呼叫工具的方式",
+              "要呼叫工具時，只輸出一個 JSON 程式碼區塊，不要其他文字：",
+              '```json\n{"tool": "工具名稱", "arguments": {參數}}\n```',
+              "一次只呼叫一個工具，等看到結果再決定下一步。任務完成、不需要工具時，直接用文字回覆。"]
+    return "\n".join(lines)
+
+
+def _to_text_tool_history(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """把原生格式的工具呼叫／結果改寫成純文字對話（assistant 輸出 JSON、工具結果用 user 訊息帶回）。"""
+    out: List[Dict[str, Any]] = []
+    names: Dict[str, str] = {}
+    for m in messages:
+        role = m.get("role")
+        if role == "assistant" and m.get("tool_calls"):
+            parts = [str(m.get("content") or "").strip()]
+            for tc in m["tool_calls"]:
+                fn = tc.get("function", {})
+                names[str(tc.get("id"))] = fn.get("name", "")
+                try:
+                    args = json.loads(fn.get("arguments") or "{}")
+                except (json.JSONDecodeError, TypeError):
+                    args = fn.get("arguments")
+                call = json.dumps({"tool": fn.get("name"), "arguments": args}, ensure_ascii=False)
+                parts.append(f"```json\n{call}\n```")
+            out.append({"role": "assistant", "content": "\n".join(p for p in parts if p)})
+        elif role == "tool":
+            name = m.get("name") or names.get(str(m.get("tool_call_id")), "工具")
+            out.append({"role": "user", "content": f"[工具 {name} 的結果]\n{m.get('content', '')}"})
+        else:
+            out.append({k: v for k, v in m.items() if k in ("role", "content")})
+    merged: List[Dict[str, Any]] = []  # 連續的 user 訊息合併，避免某些範本要求一問一答交替
+
+    def as_parts(c: Any) -> List[Dict[str, Any]]:
+        return c if isinstance(c, list) else [{"type": "text", "text": str(c)}]
+
+    for m in out:
+        if merged and m["role"] == "user" and merged[-1]["role"] == "user":
+            a, b = merged[-1]["content"], m["content"]
+            if isinstance(a, str) and isinstance(b, str):
+                merged[-1] = {"role": "user", "content": f"{a}\n\n{b}"}
+            else:
+                merged[-1] = {"role": "user", "content": as_parts(a) + as_parts(b)}
+        else:
+            merged.append(m)
+    return merged
+
+
+def _json_objects(text: str) -> List[tuple]:
+    """找出文字裡所有最外層的 JSON 物件，回傳 (起點, 終點, 物件)。"""
+    found, i = [], 0
+    while True:
+        start = text.find("{", i)
+        if start < 0:
+            return found
+        depth, in_str, esc = 0, False, False
+        for j in range(start, len(text)):
+            c = text[j]
+            if in_str:
+                esc = (c == "\\") and not esc
+                if c == '"' and not esc:
+                    in_str = False
+                continue
+            if c == '"':
+                in_str = True
+            elif c == "{":
+                depth += 1
+            elif c == "}":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        found.append((start, j + 1, json.loads(text[start:j + 1])))
+                    except json.JSONDecodeError:
+                        pass
+                    i = j + 1
+                    break
+        else:
+            return found
+
+
+def _parse_text_tool_calls(content: str, names: set) -> tuple:
+    calls, spans = [], []
+    for start, end, obj in _json_objects(content or ""):
+        if isinstance(obj, dict) and obj.get("tool") in names:
+            args = obj.get("arguments", obj.get("args", {}))
+            calls.append({"id": f"call_{uuid.uuid4().hex[:12]}", "type": "function",
+                          "function": {"name": obj["tool"],
+                                       "arguments": args if isinstance(args, str) else json.dumps(args, ensure_ascii=False)}})
+            spans.append((start, end))
+    rest = content or ""
+    for start, end in reversed(spans):
+        rest = rest[:start] + rest[end:]
+    rest = re.sub(r"```(?:json)?\s*```", "", rest).strip()
+    return rest, calls[:1]  # 一次只執行一個，與提示一致
+
+
+ATTACH_IMAGE_KEY = "attach_image"
+
+
+def _attach_tool_images(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """工具結果裡有 {"attach_image": 圖檔路徑} 時，在它後面補一則帶圖片的 user 訊息，讓模型自己看圖。
+
+    tool 訊息本身不能放圖片，所以用一則 user 訊息帶。只附最後一張，舊的截圖不再重送（省 context）。
+    """
+    last = -1
+    for i, m in enumerate(messages):
+        if m.get("role") == "tool" and ATTACH_IMAGE_KEY in str(m.get("content", "")):
+            last = i
+    if last < 0:
+        return messages
+    try:
+        path = json.loads(messages[last]["content"]).get(ATTACH_IMAGE_KEY)
+        data = base64.b64encode(open(path, "rb").read()).decode("ascii")
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return messages
+    mime = "image/png" if str(path).lower().endswith(".png") else "image/jpeg"
+    image_msg = {"role": "user", "content": [
+        {"type": "text", "text": "這是剛剛截圖檢查的畫面（由左到右是不同時間點）。請自己判斷有沒有問題。"},
+        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}},
+    ]}
+    end = last + 1
+    while end < len(messages) and messages[end].get("role") == "tool":  # 同一回合的工具結果要連在一起
+        end += 1
+    return messages[:end] + [image_msg] + messages[end:]
+
+
 def _validate_messages(messages: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not isinstance(messages, (list, tuple)):
         raise LMMessageValidationError("messages must be a list/tuple")
@@ -106,6 +255,9 @@ def _normalize_openai_tool_messages(messages: Sequence[Dict[str, Any]]) -> List[
     """OpenAI Chat Completions require role=tool messages to include tool_call_id."""
     out: List[Dict[str, Any]] = []
     for m in messages:
+        if "reasoning" in m or "usage" in m:
+            # 思考過程與 token 用量只給 UI 看，不再送回模型
+            m = {k: v for k, v in m.items() if k not in ("reasoning", "usage")}
         if m.get("role") != "tool":
             out.append(m)
             continue
@@ -185,7 +337,10 @@ class OpenAIWrapper:
     def __init__(self, api_key: str, base_url: str, model: str, request_options: Dict):
         self.client = openai.OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
-        self.request_options = request_options
+        self.request_options = dict(request_options or {})
+        # tool_mode="text"：不送原生 tools，改把工具說明寫進提示、從回覆的 JSON 解析工具呼叫。
+        # 給範本不支援工具呼叫的模型／伺服器用（例如 LM Studio 上的 Gemma 4 QAT）。
+        self.tool_mode = self.request_options.pop("tool_mode", "native")
 
     def analyze_image_bytes(
         self,
@@ -224,13 +379,18 @@ class OpenAIWrapper:
         system_prompt: Optional[str] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
+        text_mode = bool(tools) and self.tool_mode == "text"
         msgs = []
-        if system_prompt:
-            msgs.append({"role": "system", "content": system_prompt})
-        msgs.extend(_normalize_openai_tool_messages(messages))
+        sys_text = system_prompt or ""
+        if text_mode:
+            sys_text = f"{sys_text}\n\n{_text_tool_instructions(tools)}".strip()
+        if sys_text:
+            msgs.append({"role": "system", "content": sys_text})
+        body = _attach_tool_images(_normalize_openai_tool_messages(messages))
+        msgs.extend(_to_text_tool_history(body) if text_mode else body)
 
         kwargs = self.request_options.copy()
-        if tools:
+        if tools and not text_mode:
             kwargs["tools"] = [ToolAdapter.to_openai_tool(t) for t in tools]
             kwargs["tool_choice"] = "auto"
 
@@ -242,8 +402,24 @@ class OpenAIWrapper:
             )
             msg = completion.choices[0].message
 
-            result = {"role": "assistant", "content": msg.content or ""}
-            if msg.tool_calls:
+            content, reasoning = _split_reasoning(msg)
+            result = {"role": "assistant", "content": content}
+            if reasoning:
+                result["reasoning"] = reasoning
+            usage = getattr(completion, "usage", None)
+            if usage is not None:
+                details = getattr(usage, "completion_tokens_details", None)
+                result["usage"] = {
+                    "prompt": getattr(usage, "prompt_tokens", None),
+                    "completion": getattr(usage, "completion_tokens", None),
+                    "reasoning": getattr(details, "reasoning_tokens", None) if details else None,
+                }
+            if text_mode:
+                rest, calls = _parse_text_tool_calls(content, {t["name"] for t in tools})
+                if calls:
+                    result["content"] = rest
+                    result["tool_calls"] = calls
+            elif msg.tool_calls:
                 result["tool_calls"] = [
                     {
                         "id": tc.id,

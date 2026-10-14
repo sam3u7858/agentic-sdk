@@ -17,7 +17,9 @@ from src.agent_factory import configure_logging, create_agent_components
 from src.ai_core.history import LocalChatHistory
 
 
+os.chdir(Path(__file__).resolve().parent)   # chat_history 等相對路徑一律以專案根目錄為準
 app = Flask(__name__)
+app.config["TEMPLATES_AUTO_RELOAD"] = True  # 改頁面不用重開伺服器
 configure_logging()
 load_dotenv()
 
@@ -211,18 +213,40 @@ def _run_agent_in_background(
     lm_api_url: Optional[str] = None,
     request_options: Optional[Dict[str, Any]] = None,
     enable_web_search_tool: bool = True,
+    profile: str = "general",
 ) -> None:
     try:
+        extra: Dict[str, Any] = {}
+        if profile == "anim_thin":
+            skill = (Path(__file__).parent / "skills" / "anim_thin" / "instructions.md").read_text(encoding="utf-8")
+            extra = {"enabled_tools": [], "system_prompt_name": "video_agent", "system_prompt_vars": {"skill": skill},
+                     "runtime_options": {"terse_steps": True, "drop_toolless_updates": True, "assistant_keep_full": 2},
+                     "compression_config": {"keep_recent_tool_messages": 8},
+                     "history_memory_config": {"retain_recent_messages": 100000}}  # 影片任務不封存歷史
+            enable_web_search_tool = False
         components = create_agent_components(
             conversation_id,
             storage_directory="chat_history",
             event_handler=_event_handler,
             provider=provider,
             model=model,
+            api_key=("local" if provider == "local" else None),
             lm_api_url=lm_api_url,
             request_options=request_options,
             enable_web_search_tool=enable_web_search_tool,
+            **extra,
         )
+        if profile == "anim_thin":
+            from src.tools.aam_tools import make_aam_tools
+            vision_llm = components["llm"]
+
+            def _vision(img: bytes, q: str) -> str:
+                try:
+                    return vision_llm.analyze_image_bytes(prompt=q, image_bytes=img, mime_type="image/jpeg",
+                                                          system_prompt="你是嚴格的影片畫面檢查員，精簡條列。")
+                except Exception as e:  # noqa: BLE001
+                    return f"(vision failed: {e})"
+            components["tool_executor"].register_tools(make_aam_tools(_vision))
         runtime_meta = _detect_runtime_model(components)
         event_store.set_runtime_meta(conversation_id, runtime_meta)
         event_store.publish(
@@ -259,6 +283,61 @@ def _run_agent_in_background(
 @app.get("/")
 def index() -> str:
     return render_template("index.html")
+
+
+@app.get("/agent")
+def agent_ui() -> str:
+    """Discord × Codex 風格的 Agent 工作台。"""
+    return render_template("agent_ui.html")
+
+
+@app.get("/runs")
+def runs_ui() -> str:
+    """分段 Agent 執行檢視：Sessions｜分段｜段落詳情（思考、工具）｜進度與分派。"""
+    return render_template("runs.html")
+
+
+@app.get("/api/seg-runs")
+def api_seg_runs():
+    from src.seg_run_view import list_runs
+    return jsonify(list_runs())
+
+
+@app.get("/api/seg-runs/<run_id>")
+def api_seg_run(run_id: str):
+    from src.seg_run_view import run_detail
+    if not _safe_conversation_id(run_id):
+        abort(400)
+    aam_root = Path(os.getenv("AAM_ROOT", "E:/Repos/automatic-animation-maker"))
+    return jsonify(run_detail(run_id, aam_root))
+
+
+_FILE_ROOTS = [Path(__file__).resolve().parent,
+               Path(os.getenv("AAM_ROOT", "E:/Repos/automatic-animation-maker")).resolve()]
+_FILE_EXT = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".webm"}
+
+
+@app.get("/api/file")
+def serve_file():
+    """只提供工作區內的圖片／影片（給 UI 顯示縮圖表與成片）。"""
+    raw = str(request.args.get("path", "")).strip()
+    try:
+        p = Path(raw).resolve()
+    except OSError:
+        abort(400)
+    if p.suffix.lower() not in _FILE_EXT or not p.is_file():
+        abort(404)
+    if not any(str(p).lower().startswith(str(r).lower()) for r in _FILE_ROOTS):
+        abort(403)
+    from flask import send_file
+    return send_file(p, conditional=True)
+
+
+@app.get("/api/runtime-defaults")
+def runtime_defaults():
+    cfg = _resolve_runtime_config_from_env()
+    running = [cid for cid in list(event_store._completed.keys()) if not event_store.is_completed(cid)]
+    return jsonify({**cfg, "running": running})
 
 
 def _build_docs_sidebar(cache: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -483,6 +562,8 @@ def list_conversations():
     conversation_ids = history_backend.list_conversations()
     items = []
     for conversation_id in conversation_ids:
+        if conversation_id.endswith(".result"):  # run_video_*.py 的結果檔，不是對話
+            continue
         conversation = history_backend.get_conversation(conversation_id) or {}
         messages = conversation.get("messages", [])
         preview = ""
@@ -505,8 +586,26 @@ def get_conversation(conversation_id: str):
     if conversation is None:
         return jsonify({"error": "Conversation not found"}), 404
     payload = dict(conversation)
+    payload["messages"] = _restore_archived(conversation_id, payload.get("messages", []))
     payload["runtime_meta"] = event_store.get_runtime_meta(conversation_id)
     return jsonify(payload)
+
+
+def _restore_archived(conversation_id: str, messages: list) -> list:
+    """工作台顯示用：把 [ARCHIVED_MESSAGE] 換回 .archive 裡保存的原始訊息（紀錄檔本身不動）。"""
+    if not _safe_conversation_id(conversation_id) or not any(m.get("archive_ref") for m in messages):
+        return messages
+    path = Path("chat_history") / ".archive" / f"{conversation_id}.json"
+    try:
+        entries = json.loads(path.read_text(encoding="utf-8")).get("entries", [])
+    except (OSError, json.JSONDecodeError):
+        return messages
+    originals = {e.get("archive_ref"): (e.get("level0") or {}).get("raw_message") for e in entries}
+    restored = []
+    for m in messages:
+        raw = originals.get(m.get("archive_ref"))
+        restored.append({**raw, "archived": True} if isinstance(raw, dict) else m)
+    return restored
 
 
 def _safe_conversation_id(conversation_id: str) -> bool:
@@ -564,6 +663,11 @@ def create_chat():
         request_options["google_search_exclude_domains"] = google_search_exclude_domains
 
     runtime_cfg = _resolve_runtime_config_from_env()
+    profile = str(payload.get("profile", "general")).strip() or "general"
+    for key in ("provider", "model", "lm_api_url"):
+        val = str(payload.get(key, "") or "").strip()
+        if val:
+            runtime_cfg[key] = val
     event_store.start_run(conversation_id)
     queued_runtime_meta = {
         "provider": runtime_cfg["provider"],
@@ -582,6 +686,7 @@ def create_chat():
             runtime_cfg.get("lm_api_url"),
             request_options or None,
             enable_web_search_tool,
+            profile,
         ),
         daemon=True,
     )
@@ -590,6 +695,7 @@ def create_chat():
         {
             "conversation_id": conversation_id,
             "runtime_meta": queued_runtime_meta,
+            "profile": profile,
         }
     )
 
@@ -623,4 +729,4 @@ def stream_events(conversation_id: str):
 
 
 if __name__ == "__main__":
-    app.run(debug=False, port=15220)
+    app.run(debug=False, port=15220, threaded=True)

@@ -1,3 +1,4 @@
+import re
 import json
 import os
 from dataclasses import dataclass
@@ -120,7 +121,6 @@ class SessionToolResultCompressor:
         should_level_compress = len(tool_indexes) > self.config.keep_recent_tool_messages
         keep_indexes = set(tool_indexes[-self.config.keep_recent_tool_messages :]) if should_level_compress else set()
         compressed: List[Dict[str, Any]] = []
-        l3_buckets: List[Dict[str, Any]] = []
 
         for index, message in enumerate(messages):
             if message.get("role") != "tool":
@@ -148,7 +148,8 @@ class SessionToolResultCompressor:
 
             age_rank = len(tool_indexes) - tool_indexes.index(index)
             tool_name = str(msg_copy.get("name") or "unknown_tool")
-            status = "fail" if str(msg_copy.get("content", "")).startswith("Error:") else "success"
+            raw = str(msg_copy.get("content", "")).lstrip()
+            status = "fail" if raw.startswith("Error:") or re.match(r'\{\s*"ok"\s*:\s*false', raw) else "success"
 
             if age_rank <= self.config.level1_window:
                 compressed.append(
@@ -173,16 +174,16 @@ class SessionToolResultCompressor:
                 continue
 
             if self.config.enable_level3_collapse:
-                tid = str(msg_copy.get("tool_call_id") or "")
-                if l3_buckets and l3_buckets[-1]["tool_name"] == tool_name:
-                    l3_buckets[-1]["count"] += 1
-                    l3_buckets[-1]["tool_call_ids"].append(tid)
-                else:
-                    l3_buckets.append(
-                        {"tool_name": tool_name, "count": 1, "tool_call_ids": [tid]}
+                # Keep the marker in place so each tool result stays right after its
+                # assistant tool_call (moving markers to the front broke message ordering).
+                compressed.append(
+                    self._synthetic_tool_message(
+                        msg_copy,
+                        tool_name=tool_name,
+                        content=f"<ActionLoop: {tool_name} {status}>",
+                        compression_level=3,
                     )
-
-                # Delay append; we collapse contiguous old calls into action-loop markers.
+                )
                 continue
 
             compressed.append(
@@ -194,38 +195,6 @@ class SessionToolResultCompressor:
                 )
             )
 
-        if self.config.enable_level3_collapse and l3_buckets:
-            collapsed = []
-            for bucket in l3_buckets:
-                content = (
-                    f"<ActionLoop: {bucket['tool_name']} repeated "
-                    f"{bucket['count']} times in historical steps>"
-                )
-                tname = bucket["tool_name"]
-                non_empty_ids = [t for t in bucket["tool_call_ids"] if t]
-                if non_empty_ids:
-                    for tid in non_empty_ids:
-                        collapsed.append(
-                            {
-                                "role": "tool",
-                                "tool_call_id": tid,
-                                "name": tname,
-                                "content": content,
-                                "compression_level": 3,
-                            }
-                        )
-                else:
-                    collapsed.append(
-                        {
-                            "role": "user",
-                            "content": (
-                                f"[compressed tool loop summary name={tname}]\n{content}"
-                            ),
-                            "compression_level": 3,
-                        }
-                    )
-            # Prepend L3 markers so the model still sees long-horizon history hints first.
-            compressed = collapsed + compressed
 
         return compressed
 

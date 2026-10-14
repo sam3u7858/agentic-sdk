@@ -71,6 +71,9 @@ def create_agent_components(
     compression_config: Optional[Dict[str, Any]] = None,
     history_memory_config: Optional[Dict[str, Any]] = None,
     enable_web_search_tool: bool = True,
+    system_prompt_name: str = "system_core",
+    system_prompt_vars: Optional[Dict[str, Any]] = None,
+    runtime_options: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, object]:
     load_dotenv()
 
@@ -202,7 +205,7 @@ def create_agent_components(
         tool_factories=worker_tool_factories,
     )
 
-    selected_tool_names = enabled_tools or list(tool_factories.keys())
+    selected_tool_names = enabled_tools if enabled_tools is not None else list(tool_factories.keys())
     tool_executor = ToolExecutor()
     for tool_name in selected_tool_names:
         factory = tool_factories.get(tool_name)
@@ -217,11 +220,12 @@ def create_agent_components(
         lm_api_url=resolved_lm_api_url,
         request_options=request_options,
     )
-    system_prompt = prompt_manager.load_prompt(
-        "system_core",
-        agent_name="SkillAware-Agent",
-        available_skills=skill_registry.get_skill_summaries(),
-    )
+    prompt_vars: Dict[str, Any] = {
+        "agent_name": "SkillAware-Agent",
+        "available_skills": skill_registry.get_skill_summaries(),
+    }
+    prompt_vars.update(system_prompt_vars or {})
+    system_prompt = prompt_manager.load_prompt(system_prompt_name, **prompt_vars)
     llm.set_system_prompt(system_prompt)
 
     history = LocalChatHistory(
@@ -239,6 +243,7 @@ def create_agent_components(
         tool_executor,
         event_handler=event_handler,
         compression_config=compression_config,
+        runtime_options=runtime_options,
     )
 
     return {

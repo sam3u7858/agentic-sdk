@@ -3,7 +3,7 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from src.ai_core.compression import (
     SessionCompressionConfig,
     SessionToolResultCompressor,
@@ -17,6 +17,11 @@ logger = logging.getLogger(__name__)
 class AgentRuntime:
     FINAL_MARKERS = ("<?final>", "</end_of_message>", "</final>")
     ASK_USER_MARKERS = ("<?ask_user>", "<?await_user>")
+    # 沒呼叫工具的回合：第 NUDGE_AFTER 回合起提醒直接呼叫工具，第 STOP_AFTER_TOOLLESS 回合停止
+    NUDGE_AFTER = 2
+    STOP_AFTER_TOOLLESS = 5
+    NUDGE_TEXT = ("\n注意：你已經連續幾回合只在規劃、沒有呼叫工具。不要再重寫整份計畫，"
+                  "現在就呼叫流程中的下一個工具；計畫可以邊做邊調整。")
 
     def __init__(
         self,
@@ -24,8 +29,19 @@ class AgentRuntime:
         tool_executor: Optional[ToolExecutor] = None,
         event_handler: Optional[Callable[[Dict[str, Any]], None]] = None,
         compression_config: Optional[Dict[str, Any]] = None,
+        runtime_options: Optional[Dict[str, Any]] = None,
     ):
         self.session = session
+        ro = runtime_options or {}
+        # terse_steps：每步提示只要求「直接呼叫下一個工具」，不要求寫進度敘述
+        self.terse_steps = bool(ro.get("terse_steps", False))
+        # drop_toolless_updates：沒呼叫工具的中間回覆不進歷史（只保留最新一則）
+        self.drop_toolless_updates = bool(ro.get("drop_toolless_updates", False))
+        # assistant_keep_full：assistant 進度文字只保留最近 N 則完整，其餘截短；0 表示不處理
+        self.assistant_keep_full = int(ro.get("assistant_keep_full", 0))
+        self.assistant_trim_chars = int(ro.get("assistant_trim_chars", 80))
+        # stop_after_blocked_repeats：同一個失敗呼叫被擋下 N 次還在重送就停止（0＝不停）
+        self.stop_after_blocked_repeats = int(ro.get("stop_after_blocked_repeats", 0))
         self.tool_executor = tool_executor or ToolExecutor()
         self.event_handler = event_handler
         cc = compression_config or {}
@@ -97,6 +113,7 @@ class AgentRuntime:
             },
         )
         last_visible_content = ""
+        toolless_streak = 0  # 連續幾回合沒有呼叫工具（只思考、被截斷、或只寫文字）
 
         for step in range(1, max_steps + 1):
             logger.info("[Step %s] Collecting conversation context", step)
@@ -122,10 +139,12 @@ class AgentRuntime:
                     messages = messages_for_model
                 except Exception:
                     logger.exception("Failed to persist compressed conversation history")
+            messages_for_model = self._slim_for_model(messages_for_model)
             messages_for_model.append(
                 {
                     "role": "user",
-                    "content": self._build_step_instruction(step, max_steps),
+                    "content": self._build_step_instruction(step, max_steps)
+                    + (self.NUDGE_TEXT if toolless_streak >= self.NUDGE_AFTER else ""),
                 }
             )
             response = self.session.llm.get_completion(messages_for_model, tools=tools)
@@ -165,6 +184,7 @@ class AgentRuntime:
 
             # 4. Determine if LLM requests to call tools
             if "tool_calls" in response and response["tool_calls"]:
+                toolless_streak = 0
                 # Save the request of LLM to history, keep the conversation chain complete
                 self.session.history_backend.add_message(self.session.conversation_id, response)
 
@@ -190,22 +210,41 @@ class AgentRuntime:
                     logger.info(f"  ⏳ [Step {step}] Call tool: {tool_name}({args})")
                     progress_emitter = self._build_tool_progress_emitter(step=step, tool_name=tool_name)
 
-                    # Execute by Host
-                    raw_tool_result = self.tool_executor.execute(
-                        tool_name,
-                        {
-                            **args,
-                            "_runtime_event_handler": progress_emitter,
-                            "_conversation_id": self.session.conversation_id,
-                            "_storage_directory": str(
-                                getattr(
-                                    self.session.history_backend,
-                                    "storage_directory",
-                                    Path("chat_history"),
-                                )
-                            ),
-                        },
-                    )
+                    # 跟上一次「失敗」的呼叫完全相同就不執行，直接要求改參數
+                    call_sig = (tool_name, json.dumps(args, ensure_ascii=False, sort_keys=True))
+                    if self.terse_steps and call_sig == getattr(self, "_last_failed_sig", None):
+                        self._blocked_repeats = getattr(self, "_blocked_repeats", 0) + 1
+                        if self.stop_after_blocked_repeats and self._blocked_repeats >= self.stop_after_blocked_repeats:
+                            message = (f"同樣失敗的呼叫被擋了 {self._blocked_repeats} 次仍在重送，已停止這次執行"
+                                       f"（{tool_name}）。")
+                            logger.warning("⛔ [Agent Runtime] %s", message)
+                            self._emit_event("stalled", {"step": step, "content": message})
+                            return message
+                        raw_tool_result = json.dumps({
+                            "ok": False,
+                            "error": "這次的參數和上一次失敗的呼叫完全相同，沒有執行",
+                            "fix": "依上一次回傳的 error/fix 修改參數後再送",
+                        }, ensure_ascii=False)
+                    else:
+                        # Execute by Host
+                        raw_tool_result = self.tool_executor.execute(
+                            tool_name,
+                            {
+                                **args,
+                                "_runtime_event_handler": progress_emitter,
+                                "_conversation_id": self.session.conversation_id,
+                                "_storage_directory": str(
+                                    getattr(
+                                        self.session.history_backend,
+                                        "storage_directory",
+                                        Path("chat_history"),
+                                    )
+                                ),
+                            },
+                        )
+                    self._last_failed_sig = call_sig if self._tool_failed(
+                        raw_tool_result if isinstance(raw_tool_result, str) else json.dumps(raw_tool_result, ensure_ascii=False)
+                    ) else None
                     tool_payload = self._normalize_tool_result_payload(
                         tool_name=tool_name,
                         raw_result=raw_tool_result,
@@ -355,6 +394,18 @@ class AgentRuntime:
                         "content": response.get("content", ""),
                     },
                 )
+                toolless_streak += 1
+                if toolless_streak >= self.STOP_AFTER_TOOLLESS:
+                    # 只思考不行動的空轉（常見原因：context 太小、思考被截斷）——停下來回報，不要無限重試
+                    usage = response.get("usage") or {}
+                    message = (
+                        f"連續 {toolless_streak} 回合沒有呼叫工具，已停止。"
+                        f"最後一回合 prompt {usage.get('prompt')} / 輸出 {usage.get('completion')} tokens"
+                        f"（其中思考 {usage.get('reasoning')}）。若 prompt＋輸出剛好等於模型 context 長度，請調大 context。"
+                    )
+                    logger.warning("⛔ [Agent Runtime] %s", message)
+                    self._emit_event("stalled", {"step": step, "content": message})
+                    return message
 
         if last_visible_content:
             final_message = (
@@ -418,7 +469,74 @@ class AgentRuntime:
             return single_line
         return single_line[: max_length - 3] + "..."
 
+    @staticmethod
+    def _tool_failed(content: Any) -> bool:
+        text = str(content or "").lstrip()
+        return text.startswith("Error:") or text.startswith('{"ok": false')
+
+    def _slim_for_model(self, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """只影響送給模型的版本（歷史檔保持完整，UI 照樣看得到）。
+
+        - 失敗、而且之後同一工具已成功過的呼叫：參數與結果縮成一行
+        - 沒呼叫工具的 assistant 回覆：只留最新一則（drop_toolless_updates）
+        - 較舊的 assistant 文字截短（assistant_keep_full）
+        """
+        if not (self.terse_steps or self.drop_toolless_updates or self.assistant_keep_full):
+            return messages
+        msgs = [dict(m) for m in messages]
+
+        # 1. 失敗後已修正的呼叫
+        call_owner: Dict[str, int] = {}
+        for i, m in enumerate(msgs):
+            for tc in m.get("tool_calls") or []:
+                call_owner[str(tc.get("id"))] = i
+        later_ok: set = set()
+        for i in range(len(msgs) - 1, -1, -1):
+            m = msgs[i]
+            if m.get("role") != "tool":
+                continue
+            name = str(m.get("name") or "")
+            if self._tool_failed(m.get("content")):
+                if name in later_ok:
+                    err = str(m.get("content"))
+                    try:
+                        err = json.loads(err).get("error") or err
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+                    m["content"] = f"[失敗，已在後續修正] {str(err)[:80]}"
+                    owner = call_owner.get(str(m.get("tool_call_id")))
+                    if owner is not None:
+                        a = msgs[owner]
+                        a["tool_calls"] = [
+                            {**tc, "function": {**tc["function"], "arguments": '{"_omitted": "失敗的舊參數已省略"}'}}
+                            if str(tc.get("id")) == str(m.get("tool_call_id")) else tc
+                            for tc in a.get("tool_calls") or []
+                        ]
+            else:
+                later_ok.add(name)
+
+        # 2. 沒呼叫工具的中間回覆
+        if self.drop_toolless_updates:
+            toolless = [i for i, m in enumerate(msgs)
+                        if m.get("role") == "assistant" and not m.get("tool_calls")]
+            drop = set(toolless[:-1])
+            msgs = [m for i, m in enumerate(msgs) if i not in drop]
+
+        # 3. 舊的 assistant 文字截短
+        if self.assistant_keep_full:
+            idx = [i for i, m in enumerate(msgs) if m.get("role") == "assistant" and m.get("content")]
+            for i in idx[:-self.assistant_keep_full]:
+                c = str(msgs[i]["content"])
+                if len(c) > self.assistant_trim_chars:
+                    msgs[i]["content"] = c[: self.assistant_trim_chars] + "…"
+        return msgs
+
     def _build_step_instruction(self, step: int, max_steps: int) -> str:
+        if self.terse_steps:
+            return (
+                f"[step {step}/{max_steps}] 直接呼叫下一個工具，不要寫進度敘述。"
+                "上一個工具回傳 ok=false 就照 fix 改參數。全部完成才寫最終報告並加 <?final>。"
+            )
         if step == 1:
             return (
                 "Autonomous loop instruction: first write a short visible planning update in natural language "

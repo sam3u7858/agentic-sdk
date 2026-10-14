@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>分段執行檢視</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='runs.css') }}" />
+</head>
+<body>
+<div class="layout">
+  <!-- 1. Sessions -->
+  <aside class="col sessions">
+    <header class="col-head"><span>Sessions</span><a class="link" href="/agent" title="回工作台">工作台 ↗</a></header>
+    <div class="list" id="sessions"></div>
+  </aside>
+
+  <!-- 2. 切分的 Seg -->
+  <section class="col segs">
+    <header class="col-head"><span id="runTitle">選一個執行</span><span class="sub" id="runMeta"></span></header>
+    <div class="list" id="segs"><div class="empty">左邊選一個 session</div></div>
+  </section>
+
+  <!-- 3. 點開看他在想什麼／用了哪些工具 -->
+  <main class="col detail">
+    <header class="col-head"><span id="detailTitle">段落詳情</span><span class="sub" id="detailMeta"></span></header>
+    <div class="feed" id="detail"><div class="empty">中間選一段，看它的思考與工具呼叫</div></div>
+  </main>
+
+  <!-- 4. 進度條／分派狀況 -->
+  <aside class="col overview">
+    <header class="col-head"><span>進度與分派</span></header>
+    <div class="ov" id="overview"><div id="ovMain"></div><div id="ovVideo"></div></div>
+  </aside>
+</div>
+<div class="lightbox" id="lightbox"><img id="lbImg" alt="" /><video id="lbVid" controls></video></div>
+<script src="{{ url_for('static', filename='runs.js') }}"></script>
+</body>
+</html>
